@@ -1,0 +1,17 @@
+node_modules
+.vite
+dist
+.env
+.env.local
+.env.*
+!.env.example
+pb_data
+pocketbase
+pocketbase.exe
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.log
+logs/
+*.zip

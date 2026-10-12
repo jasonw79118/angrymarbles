@@ -1,0 +1,70 @@
+ANGRY MARBLES — DEVELOPMENT HANDOFF
+Milestone: geometry-locked local playable prototype
+Date: 2026-10-12
+
+DELIVERY
+  Destination was verified empty; Git initialized on main with origin set to the supplied repository.
+  Remote returned no refs at initialization; no remote history was changed and nothing was pushed.
+  PocketBase 0.40.x JS hooks and schema migrations are included from the supplied starter.
+  GitHub repository target: AngryMarbles
+  Frontend hosting target: GitHub Pages
+  Backend host: separate always-on HTTPS VM, Oracle Always Free eligible A1 is an option.
+  No deployment/account provisioning or GitHub push performed automatically.
+
+GAMES / USERS
+  - Password-authenticated player accounts, unique room codes.
+  - Singles 1-4 seats; teams 4/6/8 directly opposite; select same/opponent team.
+  - Host-set countdown; empty seats automatically filled with bots, with cron fallback.
+  - Choose from 48 marble colors plus custom hexadecimal; exact collisions rejected.
+  - Entire deck, discard, private hands and game rules are server-controlled.
+  - Dealer marker rotates whenever discarded cards are recycled.
+  - Stats: games, wins, losses, bumps, assists; no client access to write stats.
+
+GEOMETRY / LOCAL DEMO
+  Imported geometry and royal artwork from angry-marbles-geometry-locked-arcade-v0.4.2.zip.
+  pb_hooks/boardGeometry.cjs is the shared source for renderer and game-engine indices.
+  Square singles; 4/6/8-player team polygons; 18 unique track holes per side.
+  Red marker 2, green exit 8, five home holes, five visible base-rack holes per side.
+  Browser-local demo allows mode/size selection, legal card moves, and discards without PocketBase.
+  Local activity is simulated in one browser; online multiplayer is not yet verified.
+  Original Jack, Queen, King, and Joker SVGs are under public/assets/cards/.
+  GitHub Pages base is lowercase /angrymarbles/ and backend-free builds are supported.
+
+BACKEND
+  pb_migrations/1791760000_angry_marbles.js  collections: players, am_rooms, am_stats
+  pb_hooks/main.pb.js                    authenticated routes, cron
+  pb_hooks/controller.js                 room engine adapter and state filtering
+  pb_hooks/engine.js                     rules CommonJS copy for PocketBase Goja
+
+FRONTEND
+  src/App.tsx                             account/room/dashboard screens
+  src/pb.ts                               PocketBase web SDK adapter
+  src/engine.js                           engine for board drawing and tests
+  src/main.tsx                            React entrypoint
+  .github/workflows/pages.yml            GitHub Pages workflow
+  deploy/                                 Oracle Linux systemd/Caddy examples
+
+TESTS COMPLETED
+  npm test: 27 tests passed (23 engine and 4 geometry).
+  npm run build: passed after the local demo, shared geometry, match-screen layout, and artwork integration.
+  npm install: completed with no reported npm audit vulnerabilities.
+
+NOT YET COMPLETED / IMPORTANT
+  PocketBase 0.40 integration test (migrations, auth, custom routes, realtime signals, and cron).
+  Browser-to-server tests using two real PocketBase player accounts.
+  PocketBase installation and service integration.
+  OCI VM, DNS, TLS setup; push to GitHub and production Pages deployment.
+  Security hardening: verification email, password reset, abuse controls, backups.
+  Compare house-rule edge cases including Joker replacement collisions and split/home-run interactions.
+  Bot turns are immediate after human move; not yet delayed/animated.
+  Actual real-time delivery depends on validating PocketBase SSE custom topic subscriptions.
+
+GUARDRAILS
+  Never commit pb_data, executable, credentials, or admin tokens.
+  GitHub Pages is static-only; VITE_POCKETBASE_URL must point to another HTTPS host.
+  Do not make built-in am_rooms API list/view public: contains FULL hands and deck!
+  Do not use frontend game logic to validate moves; controller calls engine server-side.
+
+LOCAL DEMO
+  npm ci
+  npm run dev

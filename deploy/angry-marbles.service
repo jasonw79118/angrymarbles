@@ -1,0 +1,19 @@
+[Unit]
+Description=Angry Marbles PocketBase Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=angrymarbles
+Group=angrymarbles
+WorkingDirectory=/opt/angry-marbles
+ExecStart=/opt/angry-marbles/pocketbase serve --http=127.0.0.1:8090 --origins=https://jasonw79118.github.io
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
