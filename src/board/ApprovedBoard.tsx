@@ -67,7 +67,8 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
       }
       return path;
     };
-    const boardOrientation=90-Math.atan2(geo.sides[activeSeat]?.green.y-geo.center.y,geo.sides[activeSeat]?.green.x-geo.center.x)*180/Math.PI;
+    const activeSide=geo.sides[activeSeat]||geo.sides[0];
+    const boardOrientation=180-Math.atan2(activeSide.along.y,activeSide.along.x)*180/Math.PI;
     const draw=()=>{
       svg.replaceChildren();
       const defs=el('defs');
