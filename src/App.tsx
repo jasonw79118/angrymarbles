@@ -1,8 +1,9 @@
 import {useEffect,useState, type FormEvent} from 'react';
 import {pb,hasConfiguredBackend,gameApi,type Profile,type PublicGame,type GameMode,type Relation} from './pb';
-import {COLORS,trackPosition,possibleSeats,startGame,legalMoves,play,MARBLES} from './engine.js';
-import type {RoomState,Player,Piece,Card} from './types';
+import {COLORS,possibleSeats,startGame,legalMoves,play,MARBLES} from './engine.js';
+import type {RoomState,Player,Card} from './types';
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
+import ApprovedBoard from './board/ApprovedBoard';
 const VERSION='0.4.2';
 const errText=(error:unknown)=>error instanceof Error?error.message:String(error);
 function Login({onLogin}:{onLogin:()=>void}){
@@ -39,59 +40,29 @@ function Login({onLogin}:{onLogin:()=>void}){
     </form>
   </section>;
 }
-const polar=(index:number,count:number,r:number)=>{
-  const angle=2*Math.PI*index/count - Math.PI/2;
-  return {x:430+r*Math.cos(angle),y:430+r*Math.sin(angle)};
-};
-function Board({room}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'>}){
+function Board({room}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'|'mySeat'>}){
   const sideCount=room.boardSides||boardGeometry.boardSides(room.mode,room.capacity);
-  const board=boardGeometry.geometry(sideCount);
-  const seatByIndex=new Map(room.players.map(p=>[p.seat,p]));
-  const colorFor=(seat:number)=>seatByIndex.get(seat)?.color||'#bdc3c7';
-  const polygon=(radius:number)=>board.corners.map(point=>`${board.center.x+(point.x-board.center.x)*radius/board.radius},${board.center.y+(point.y-board.center.y)*radius/board.radius}`).join(' ');
-  const piecesAt=(seat:number,loc:Piece['loc'],position:number)=>room.pieces.find(piece=>piece.seat===seat&&piece.loc===loc&&(loc==='base'?piece.slot===position:piece.run===position));
-  return <svg viewBox="0 0 1040 970" role="img" aria-label={`${sideCount}-sided board with indexed track, base racks, and home runs`} className="board">
-    <defs>
-      <linearGradient id="boardWood" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#f6c77e"/><stop offset=".28" stopColor="#bd6e31"/><stop offset=".62" stopColor="#e7a452"/><stop offset="1" stopColor="#80441f"/></linearGradient>
-      <radialGradient id="boardFelt" cx="48%" cy="43%" r="78%"><stop stopColor="#23647f"/><stop offset=".78" stopColor="#0b304c"/><stop offset="1" stopColor="#082237"/></radialGradient>
-      {Array.from({length:sideCount},(_,seat)=><radialGradient key={seat} id={`marble-${seat}`} cx="27%" cy="21%" r="86%"><stop stopColor="#fff" stopOpacity=".9"/><stop offset=".2" stopColor={colorFor(seat)}/><stop offset=".72" stopColor={colorFor(seat)}/><stop offset="1" stopColor="#16243d"/></radialGradient>)}
-      <filter id="marbleShadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.3"/></filter>
-    </defs>
-    <polygon points={polygon(board.radius+44)} fill="url(#boardWood)" stroke="#59351e" strokeWidth="8" strokeLinejoin="round"/>
-    <polygon points={polygon(board.radius-40)} fill="url(#boardFelt)" stroke="#94571e" strokeWidth="8" strokeLinejoin="round"/>
-    {board.sides.map(side=><g key={`lane-${side.seat}`}>
-      <line x1={side.red.x+side.inward.x*12} y1={side.red.y+side.inward.y*12} x2={side.red.x+side.inward.x*126} y2={side.red.y+side.inward.y*126} stroke="#8c4835" strokeWidth="29" strokeLinecap="round"/>
-      <line x1={side.green.x+side.inward.x*33} y1={side.green.y+side.inward.y*33} x2={side.green.x+side.inward.x*151} y2={side.green.y+side.inward.y*151} stroke="#306e54" strokeWidth="34" strokeLinecap="round"/>
-      {side.home.map(hole=><circle key={`home-hole-${hole.id}`} cx={hole.x} cy={hole.y} r="8" fill="#482212" stroke="#daab62" strokeWidth="2" data-hole-type="home" data-hole-id={hole.id}/>)}
-      {side.base.map(hole=><circle key={`base-hole-${hole.id}`} cx={hole.x} cy={hole.y} r="11" fill="#402314" stroke="#b98d5b" strokeWidth="2" data-hole-type="base" data-hole-id={hole.id}/>)}
-      <text x={side.red.x-side.inward.x*28} y={side.red.y-side.inward.y*28} fill="#fa7777" fontSize="12" fontWeight="800" textAnchor="middle">HOME</text>
-      <text x={side.green.x-side.inward.x*28} y={side.green.y-side.inward.y*28} fill="#65e1af" fontSize="12" fontWeight="800" textAnchor="middle">BASE</text>
-      {side.track.map(hole=><circle key={`track-hole-${hole.id}`} cx={hole.x} cy={hole.y} r={hole.marker?10:8} fill={hole.marker==='red'?'#c82e3c':hole.marker==='green'?'#0a976b':'#422012'} stroke={hole.marker==='red'?'#ff9d98':hole.marker==='green'?'#9ee4b4':'#d59b53'} strokeWidth="2" data-hole-type="track" data-hole-id={hole.id} data-marker={hole.marker||undefined}/>)}
-      {side.home.map(hole=>{const piece=room.pieces.find(item=>item.seat===side.seat&&((item.loc==='run'&&item.run===hole.position)||(item.loc==='home'&&hole.position===4)));return piece?<g key={piece.id} className="marble-piece"><circle cx={hole.x+2} cy={hole.y+3} r="11" fill="#050c0e" opacity=".7"/><circle cx={hole.x} cy={hole.y} r="9" fill={`url(#marble-${piece.seat%8})`} stroke="#fff" strokeWidth="1.2"/></g>:null;})}
-      {side.base.map(hole=>{const piece=piecesAt(side.seat,'base',hole.position);return piece?<g key={piece.id}><circle cx={hole.x+2} cy={hole.y+3} r="11" fill="#050c0e" opacity=".7"/><circle cx={hole.x} cy={hole.y} r="9" fill={`url(#marble-${piece.seat%8})`} stroke="#fff" strokeWidth="1.2"/></g>:null;})}
-      {seatByIndex.get(side.seat)&&<text x={side.from.x+side.along.x*side.length*.5+side.inward.x*82} y={side.from.y+side.along.y*side.length*.5+side.inward.y*82} fill={colorFor(side.seat)} fontSize="15" fontWeight="900" textAnchor="middle">{seatByIndex.get(side.seat)?.name.slice(0,12)}</text>}
-    </g>)}
-    {board.sides.flatMap(side=>side.track).map(hole=>{const piece=room.pieces.find(item=>item.loc==='track'&&trackPosition(item,sideCount)===hole.id);return piece?<g key={piece.id} className="marble-piece"><circle cx={hole.x+2} cy={hole.y+4} r="12" fill="#020b11" opacity=".72" filter="url(#marbleShadow)"/><circle cx={hole.x} cy={hole.y} r="10.5" fill={`url(#marble-${piece.seat%8})`} stroke="#fff" strokeWidth="1.4"/><ellipse cx={hole.x-3} cy={hole.y-3.5} rx="3.1" ry="2" fill="#fff" opacity=".72"/></g>:null;})}
-    {board.sides.slice(0,1).flatMap(side=>[0,2,8,18].map(position=>({side,position,point:side.holes[position]}))).map(({side,position,point})=><text key={`index-${position}`} x={point.x+side.inward.x*-26} y={point.y+side.inward.y*-26+4} fill="#ffe0a2" fontSize="13" fontWeight="900" textAnchor="middle">{position}</text>)}
-    <text x={board.center.x} y={board.center.y-9} fill="#ffba3f" textAnchor="middle" fontSize="46" fontWeight="1000" stroke="#6e251c" strokeWidth="5" paintOrder="stroke">ANGRY</text>
-    <text x={board.center.x} y={board.center.y+34} fill="#85caff" textAnchor="middle" fontSize="42" fontWeight="1000" stroke="#142e65" strokeWidth="5" paintOrder="stroke">MARBLES</text>
-    <text x={board.center.x} y={board.center.y+65} fill="#a5d3df" textAnchor="middle" fontSize="12">{sideCount} SIDES · {sideCount*18} TRACK SPACES</text>
-  </svg>;
+  return <ApprovedBoard sideCount={sideCount} players={room.players} pieces={room.pieces} activeSeat={room.mySeat??room.players[0]?.seat??0} showIndices/>;
 }
 function CardChip({card,selected,onClick}:{card:Card,selected:boolean,onClick:()=>void}){
   const red=card.suit==='♥'||card.suit==='♦';
   const portrait=card.rank==='JOKER'?'joker':({J:'jack',Q:'queen',K:'king'} as Record<string,string>)[card.rank]||null;
   const imageUrl=portrait?`${import.meta.env.BASE_URL}assets/cards/card-${portrait}.svg`:null;
-  return <button type="button" className={`card-chip ${selected?'selected':''} ${red?'red':''}`} onClick={onClick}>
-    <span>{card.rank==='JOKER'?'JOKER':card.rank}</span>{imageUrl&&<img src={imageUrl} alt=""/>}<strong>{card.rank==='JOKER'?'★':card.suit}</strong>
+  const label=card.rank==='JOKER'?'JOKER':`${card.rank} of ${card.suit}`;
+  return <button type="button" aria-label={label} aria-pressed={selected} className={`playing-card ${selected?'selected':''} ${red?'red':''} ${portrait?'royal':''}`} onClick={onClick}>
+    {imageUrl?<img src={imageUrl} alt={card.rank==='JOKER'?'Marble jester':`Marble ${card.rank}`} />:<><span className="corner-index">{card.rank}<br/>{card.suit}</span>{card.suit}</>}
   </button>;
 }
-function PlayerList({room}:{room:Pick<RoomState,'players'|'turnSeat'|'dealerSeat'>}){
-  return <div className="players-grid">{room.players.map(p=><div key={p.seat} className={`player ${room.turnSeat===p.seat?'active':''}`}>
-    <span className="marble-icon" style={{background:p.color}}/>
-    <div><strong>{p.name} {p.isBot&&<span className="muted">(Bot)</span>}</strong><small>Seat {p.seat+1} · {5-p.baseCount}/5 home · {p.baseCount} base{room.dealerSeat===p.seat?' · Dealer':''}</small></div>
-    {room.turnSeat===p.seat&&<span className="turn-dot" title="Current turn"/>}
-  </div>)}</div>;
+function PlayerList({room}:{room:Pick<RoomState,'players'|'turnSeat'|'dealerSeat'|'mode'|'capacity'>}){
+  const sideCount=boardGeometry.boardSides(room.mode,room.capacity);
+  return <div className="roster">{room.players.map(p=>{
+    const partner=room.mode==='doubles'?boardGeometry.oppositeSeat(p.seat,sideCount):p.seat;
+    const team=room.mode==='doubles'?Math.min(p.seat,partner)%(sideCount/2)+1:null;
+    return <div key={p.seat} className={`player ${room.turnSeat===p.seat?'active':''}`}>
+      <span className="gloss" style={{background:p.color}}/>
+      <div><div className="pname">{p.name} {p.isBot&&<span>(Bot)</span>} · P{p.seat+1}</div><div className="pmeta">{team?`Team ${team}`:'Solo'} · {p.baseCount} in base / {5-p.baseCount} out · {p.marbleCount}/5 home</div><div className="mini-marbles">{Array.from({length:5},(_,index)=><b key={index} style={{background:index<p.baseCount?p.color:'#354f6b'}}/>)}</div></div>
+    </div>;
+  })}</div>;
 }
 
 function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profile}){
@@ -125,87 +96,76 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
   const isTurn=room.status==='playing'&&room.mySeat===room.turnSeat;
   const secondsLeft=room.fillAt?Math.max(0,Math.ceil((room.fillAt-now)/1000)):null;
   const shareUrl=`${window.location.origin}${window.location.pathname}?room=${code}&relation=${room.preferredRelation||'against'}`;
-  return <div className="room-layout">
-    <div className="room-header"><div><small className="eyebrow">{room.mode==='doubles'?'PARTNERS':'SINGLES'} · {room.capacity} SEATS</small><h2>Room <span>{room.code}</span></h2></div>
-      <div className="toolbar"><button onClick={()=>navigator.clipboard.writeText(shareUrl).catch(()=>setError('Copy failed; share your room code instead.'))}>Copy invite link</button><button onClick={onLeave}>Back to lobby</button></div>
-    </div>
-    {error&&<p className="error" role="alert">{error}</p>}
-    <div className="layout-2"><div className="panel game-board-wrap"><Board room={room}/><p className="small centered">{room.boardSides} sides · {room.track} indexed track holes · five visible base marbles per player</p></div>
-      <aside className="sidebar">
-        {room.status==='waiting'&&<div className="panel stack">
-          <h3>Waiting for players</h3><p>{room.players.length} of {room.capacity} seats filled. Invite family and friends first.</p>
-          {room.startedCountdown?<p className="countdown">Bots join in <strong>{secondsLeft}s</strong></p>:isHost?
-            <button className="primary" disabled={busy} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button>:<p className="small">Waiting for the host to start the countdown.</p>}
-          <p className="small">{room.mode==='doubles'?'Partners are seated opposite one another.':'Everybody plays individually.'} Empty spots become computer seats.</p>
-          <h4>Pick a marble color</h4><div className="palette">{COLORS.map(color=>{
-            const taken=room.players.some(p=>p.color.toLowerCase()===color.toLowerCase()&&p.seat!==room.mySeat);
-            return <button key={color} title={taken?`${color} (taken)`:color} aria-label={`Marble color ${color}`} disabled={taken||busy} className={`swatch ${me?.color.toLowerCase()===color.toLowerCase()?'chosen':''}`} style={{background:color}} onClick={()=>call(()=>gameApi.color(code,color))}/>;
-          })}</div>
-          <div className="custom"><label>Custom color <input type="color" value={customColor} onChange={e=>setCustomColor(e.target.value)}/></label><button disabled={busy} onClick={()=>call(()=>gameApi.color(code,customColor))}>Use custom</button></div>
-        </div>}
-        <div className="panel stack"><h3>Players</h3><PlayerList room={room}/></div>
-        {room.status==='playing'&&<div className="panel stack">
-          <h3>{isTurn?'Your turn':'Waiting for '+(room.players.find(p=>p.seat===room.turnSeat)?.name||'player')}</h3>
-          <p className="small">Dealer: {room.players.find(p=>p.seat===room.dealerSeat)?.name}. Deal rotates upon reshuffle without advantage.</p>
-          <p className="small">Cards left: {room.deckCount} · Discards: {room.discards} · Turn {room.turnNumber}</p>
-          <h4>Your hand</h4><div className="hand">{room.myHand.map((card,i)=><CardChip key={card.id+i} card={card} selected={cardIndex===i} onClick={()=>setCardIndex(i)}/>)}</div>
-          {isTurn?<><h4>Legal moves</h4><div className="moves">{filtered.length?filtered.slice(0,100).map(m=><button key={m.id} disabled={busy} onClick={()=>call(()=>gameApi.move(code,m.id))}>{m.label}</button>):<p className="small">No legal move for this card; discard it.</p>}</div>
-            <button className="danger" disabled={busy||!room.myHand.length} onClick={()=>call(()=>gameApi.discard(code,cardIndex))}>Discard selected card</button></>
-            :<p className="small">Only you can see your hand.</p>}
-        </div>}
-        {room.status==='finished'&&<div className="panel stack"><h3>Round finished!</h3><p className="winner">Winner: {room.players.filter(p=>room.winners?.includes(p.seat)).map(p=>p.name).join(' & ')}</p><p>Wins, losses, bumps, and assists were saved.</p><button className="primary" onClick={onLeave}>New round</button></div>}
-        <div className="panel stack"><h3>Match activity</h3><ol className="log">{room.log.slice(0,12).map((line,i)=><li key={i}>{line}</li>)}</ol></div>
-      </aside></div>
+  return <div className="approved-page">
+    <header><div className="brand"><strong>ANGRY</strong> MARBLES<small>{room.mode==='doubles'?'PARTNER GAME':'SINGLES'} · {room.capacity} SIDES · ROOM {room.code}</small></div><div className="hdr-actions"><span className={`pill ${room.status==='playing'?'green':''}`}>● {room.status==='playing'?'LIVE GAME':room.status.toUpperCase()}</span><button className="pill" onClick={()=>navigator.clipboard.writeText(shareUrl).catch(()=>setError('Copy failed; share your room code instead.'))}>Copy invite link</button><button className="pill" onClick={onLeave}>Back to lobby</button></div></header>
+    {error&&<div className="status" role="alert">{error}</div>}
+    <div className="layout">
+      <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={room}/></div><div className="notes"><strong style={{color:'#ffd45c'}}>BASE = five waiting marbles. HOME = five empty holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
+      <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">EXACT SPACES · ARCADE STYLE</span><Board room={room}/></div>
+        {room.status==='playing'&&<div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>setCardIndex(index)}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>Dealer: {room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}<br/>Draw: {room.deckCount} · Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||!room.myHand.length} onClick={()=>call(()=>gameApi.discard(code,cardIndex))}>Discard selected</button>}</div>}
+        {room.status==='waiting'&&<div className="cardbar"><span className="yourhand">ROOM<br/><small>{room.code}</small></span><div className="card-note">{room.players.length} of {room.capacity} seats filled · {room.mode==='doubles'?'Teammates sit opposite.':'Singles game.'} Empty seats can be filled by computer players.</div>{room.startedCountdown?<span className="pill green">Bots join in {secondsLeft}s</span>:isHost?<button className="primary" disabled={busy} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button>:<span className="pill">Waiting for host</span>}</div>}
+        {room.status==='finished'&&<div className="cardbar"><span className="yourhand">GAME<br/><small>COMPLETE</small></span><div className="card-note"><b>Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</b><br/>Wins, losses, bumps, and assists were saved.</div><button className="primary" onClick={onLeave}>New game</button></div>}
+        <div className="bottomline">{room.status==='playing'?'Only your hand and your server-validated legal moves are visible to you.':'Your room and seat are managed by PocketBase.'}</div>
+      </section>
+      <aside className="panel side right"><div><h3>BOARD SETTINGS</h3><div className="sub">{room.mode==='doubles'?'TEAMS OF TWO':'SINGLES'} · {room.capacity} PLAYER SIDES</div><div className="legend"><span><i className="dot" style={{background:'#e43f47'}}/> Red = home turn</span><span><i className="dot" style={{background:'#00ad74'}}/> Green = base exit</span></div><table><tbody><tr><td>Track holes / side</td><td>18</td></tr><tr><td>Red marker</td><td>2</td></tr><tr><td>Green start</td><td>8</td></tr><tr><td>Green → next corner</td><td>10 moves</td></tr><tr><td>Separate home run</td><td>5 holes</td></tr><tr><td>Total track holes</td><td>{room.track}</td></tr><tr><td>Cards in draw pile</td><td>{room.deckCount}</td></tr><tr><td>Discards</td><td>{room.discards}</td></tr></tbody></table>
+        {room.status==='waiting'&&<><div className="status">{room.startedCountdown?'The room will fill open seats with computer players when the timer ends.':'Waiting for invited players to join.'}</div><label className="block">Pick a marble color</label><div className="palette">{COLORS.map(color=>{const taken=room.players.some(player=>player.color.toLowerCase()===color.toLowerCase()&&player.seat!==room.mySeat);return <button key={color} title={taken?`${color} (taken)`:color} aria-label={`Marble color ${color}`} disabled={taken||busy} className={`swatch ${me?.color.toLowerCase()===color.toLowerCase()?'chosen':''}`} style={{background:color}} onClick={()=>call(()=>gameApi.color(code,color))}/>;})}</div><div className="custom"><label>Custom color <input type="color" value={customColor} onChange={event=>setCustomColor(event.target.value)}/></label><button disabled={busy} onClick={()=>call(()=>gameApi.color(code,customColor))}>Use custom</button></div></>}
+        {room.status==='playing'&&<><h3 style={{marginTop:20}}>LEGAL MOVES</h3><div className="moves">{filtered.length?filtered.slice(0,100).map(move=><button key={move.id} disabled={busy||!isTurn} onClick={()=>call(()=>gameApi.move(code,move.id))}>{move.label}</button>):<p className="sub">{isTurn?'No legal move for this card. Discard it to pass.':'Waiting for the active player.'}</p>}</div></>}
+        {room.status==='finished'&&<p className="status">Match complete.</p>}
+        <div className="recent-panel"><h3>RECENT MOVES</h3><ol className="log">{room.log.slice(0,8).map((line,index)=><li key={index}>{line}</li>)}</ol></div></div></aside>
+    </div><footer className="foot">Angry Marbles · geometry-locked arcade edition v{VERSION} · PocketBase</footer>
   </div>;
 }
 type LocalGame = Omit<RoomState,'discards'> & {turnIndex:number;hands:Record<number,Card[]>;deck:Card[];discards:Card[];boardSides:number};
 function LocalDemo(){
-  const [mode,setMode]=useState<GameMode>('singles');
-  const [capacity,setCapacity]=useState(4);
+  const [mode,setMode]=useState<GameMode>('doubles');
+  const [capacity,setCapacity]=useState(6);
   const [room,setRoom]=useState<LocalGame|null>(null);
   const [cardIndex,setCardIndex]=useState(0);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [showIndices,setShowIndices]=useState(false);
   const choices=mode==='singles'?[1,2,3,4]:[4,6,8];
   const start=(gameMode=mode,playerCount=capacity)=>{
     const seats=possibleSeats(gameMode,playerCount);
-    const players=seats.map((seat,index)=>({id:`local-${seat}`,name:index===0?'You':`Player ${index+1}`,seat,isBot:false,color:COLORS[index],marbleCount:0,baseCount:5,handCount:5}));
+    const names=['Blue','Red','Green','Gold','Purple','Orange','Cyan','Pink'];
+    const approvedColors=['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3'];
+    const players=seats.map(seat=>({id:`local-${seat}`,name:seat===0?'You':names[seat],seat,isBot:false,color:approvedColors[seat],marbleCount:0,baseCount:5,handCount:5}));
     const initial={code:'LOCAL',mode:gameMode,capacity:playerCount,status:'waiting',visibility:'private',createdAt:Date.now(),hostId:'local-0',fillAt:null,startedCountdown:false,waitSeconds:60,preferredRelation:'against',players,pieces:[],hands:{},turnIndex:0,turnNumber:0,deck:[],discards:[],statEvents:[],log:[]} as unknown as LocalGame;
-    setRoom(startGame(initial));setCardIndex(0);setError('');
+    const next=startGame(initial);next.turnSeat=next.players[next.turnIndex].seat;next.boardSides=boardGeometry.boardSides(gameMode,playerCount);
+    setRoom(next);setCardIndex(0);setError('');
   };
+  useEffect(()=>{start('doubles',6);},[]);
   const current=room?.players.find(player=>player.seat===room.players[room.turnIndex]?.seat);
   const hand=current&&room?room.hands[current.seat]||[]:[];
   const moves=room&&current?legalMoves(room,current.seat).filter(move=>move.cardIndex===cardIndex):[];
+  const releaseMove=moves.find(move=>move.label.startsWith('Exit:'));
+  const oneStepMove=moves.find(move=>/\+1(?:\s|$|→)/.test(move.label));
   function perform(action:()=>void){
     if(!room)return;setBusy(true);setError('');
-    try{action();setRoom({...room,pieces:[...room.pieces],players:[...room.players]});setCardIndex(0);}
+    try{action();setRoom({...room,turnSeat:room.players[room.turnIndex]?.seat??null,pieces:[...room.pieces],players:[...room.players]});setCardIndex(0);}
     catch(reason){setError(errText(reason));}
     finally{setBusy(false);}
   }
+  const seatCount=room?.boardSides||4;
+  const localPlayers=room?.players.map(player=>({...player,marbleCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='home').length,baseCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='base').length,handCount:room.hands[player.seat]?.length||0}))||[];
+  const localView=room?{...room,players:localPlayers}:null;
   return <>
-    <header className="topbar"><span className="brand">● Angry Marbles</span><span className="small">Local demonstration</span></header>
-    <main className={`container demo-container ${room?'in-match':''}`}>
-      {!room&&<div className="hero"><small className="eyebrow">BOARD GEOMETRY v0.4.2 · LOCAL ONLY</small><h1>ROLL OUT.<br/><span>RACE HOME.</span></h1><p>Try the approved square, hexagon, or octagon board and play cards against the table. Moves stay in this browser; online games need a configured PocketBase server.</p></div>}
-      {!room&&<section className="panel stack demo-setup">
-        <div><h2>Choose a game</h2><p className="small">Simulated local play · no account or network connection</p></div>
-        <div className="toggle"><button className={mode==='singles'?'on':''} onClick={()=>{setMode('singles');setCapacity(4);setRoom(null);}}>Singles</button><button className={mode==='doubles'?'on':''} onClick={()=>{setMode('doubles');setCapacity(4);setRoom(null);}}>Teams of two</button></div>
-        <div className="toggle">{choices.map(count=><button key={count} className={capacity===count?'on':''} onClick={()=>{setCapacity(count);setRoom(null);}}>{count} players</button>)}</div>
-        <button className="primary" onClick={()=>start()}>Start local game</button>
-      </section>}
-      {error&&<p className="error" role="alert">{error}</p>}
-      {room&&<><div className="demo-status match-status"><strong>LOCAL DEMO</strong><span>{room.mode==='singles'?'Singles':'Team game'} · {room.capacity} players · {room.track} indexed holes</span><button onClick={()=>setRoom(null)}>Lobby</button><button onClick={()=>start()}>Restart</button></div>
-        <div className="match-grid">
-          <aside className="panel stack match-players"><h3>Players</h3><PlayerList room={{...room,players:room.players.map(player=>({...player,marbleCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='home').length,baseCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='base').length,handCount:room.hands[player.seat]?.length||0}))}}/></aside>
-          <section className="match-center"><div className="game-board-wrap"><Board room={room}/></div>
-            <div className="hand-dock"><div className="deck-stack" aria-label={`${room.deck.length} cards in draw pile`}><div className="deck-back">AM</div><strong>{room.deck.length}</strong><small>DRAW PILE</small></div><div className="local-hand" aria-label="Your cards">{hand.map((card,index)=><CardChip key={card.id} card={card} selected={cardIndex===index} onClick={()=>setCardIndex(index)}/>)}</div><button className="end-turn" disabled={busy||!hand.length||room.status!=='playing'} onClick={()=>perform(()=>play(room,current!.seat,null,cardIndex))}>End turn<br/><small>discard selected</small></button></div>
-          </section>
-          <aside className="panel stack match-aside"><div className="turn-summary"><small>ROOM {room.code}</small><h3>{room.status==='finished'?'Game over':`${current?.name||'Player'} · turn ${room.turnNumber}`}</h3><p>{room.mode==='doubles'?'Partners sit opposite.':'Every seat is competing solo.'}</p><div className="pile-counts"><span><strong>{room.deck.length}</strong> draw</span><span><strong>{room.discards.length}</strong> discard</span></div></div>
-            {room.status==='playing'&&<div className="legal-panel"><h4>Selected card · legal plays</h4><div className="moves">{moves.length?moves.map(move=><button key={move.id} disabled={busy} onClick={()=>perform(()=>play(room,current!.seat,move.id))}>{move.label}</button>):<p className="small">No legal move. End your turn by discarding this card.</p>}</div></div>}
-            {room.status==='finished'&&<div className="stack"><p className="winner">Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</p><button className="primary" onClick={()=>start()}>Play again</button></div>}
-            <div className="recent-panel"><h4>Recent moves</h4><ol className="log">{room.log.slice(0,10).map((line,index)=><li key={index}>{line}</li>)}</ol></div>
-          </aside>
-        </div></>}
-    </main><footer>Angry Marbles · Local demonstration · v{VERSION}</footer><span className="version-stamp">v{VERSION}</span>
+    <div className="approved-page">
+      <header><div className="brand"><strong>ANGRY</strong> MARBLES<small>THE ORIGINAL RULES · ARCADE EDITION</small></div><div className="hdr-actions"><span className="pill green">● LOCAL DEMO</span><span className="pill">Two full decks · 4 Jokers · 108 cards</span></div></header>
+      {error&&<div className="status" role="alert">{error}</div>}
+      {room&&<div className="layout">
+        <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${seatCount}-player · ${seatCount/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={{...room,players:localPlayers}}/></div><div className="notes"><strong style={{color:'#ffd45c'}}>BASE = five waiting marbles. HOME = five empty holes.</strong><p>Each green BASE rack begins with five marbles; each red HOME branch has five empty holes. Teammates sit directly opposite. This local demo does not connect to an online room.</p></div></aside>
+        <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">EXACT SPACES · ARCADE STYLE</span><ApprovedBoard sideCount={seatCount} players={localPlayers} pieces={room.pieces} activeSeat={current?.seat||0} showIndices={showIndices}/></div>
+          <div className="board-actions"><button className="primary" disabled={busy||!releaseMove} onClick={()=>releaseMove&&perform(()=>play(room,current!.seat,releaseMove.id))}>▶ Roll marble from base</button><button className="secondary" disabled={busy||!oneStepMove} onClick={()=>oneStepMove&&perform(()=>play(room,current!.seat,oneStepMove.id))}>Move on track +1</button><button className="secondary" onClick={()=>start()} disabled={busy}>Reset marbles</button><label className="switch"><input type="checkbox" checked={showIndices} onChange={event=>setShowIndices(event.target.checked)}/> Show landmark numbers</label></div>
+          <div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{hand.length} CARDS</small></span>{hand.map((card,index)=><CardChip key={card.id} card={card} selected={index===cardIndex} onClick={()=>setCardIndex(index)}/>)}<div className="card-note"><b>{current?.name||'Player'} · Turn {room.turnNumber}</b><br/>Draw pile: {room.deck.length} · Discards: {room.discards.length}<br/>Select a card to see server-rule-validated moves.</div><button className="primary" disabled={busy||!hand.length||room.status!=='playing'} onClick={()=>perform(()=>play(room,current!.seat,null,cardIndex))}>End turn</button></div>
+          <div className="bottomline">Local demonstration only. No login, network game, or remote players in this preview.</div>
+        </section>
+        <aside className="panel side right"><div><h3>BOARD SETTINGS</h3><label className="block" htmlFor="game-mode">Game mode</label><select id="game-mode" value={mode} onChange={event=>{const nextMode=event.target.value as GameMode;const nextCapacity=nextMode==='singles'?4:4;setMode(nextMode);setCapacity(nextCapacity);start(nextMode,nextCapacity);}}><option value="singles">Singles</option><option value="doubles">Teams of two</option></select><label className="block" htmlFor="seats">Number of player sides</label><select id="seats" value={capacity} onChange={event=>{const value=Number(event.target.value);setCapacity(value);start(mode,value);}}>{choices.map(value=><option value={value} key={value}>{value}{mode==='singles'?' players':` · ${value===4?'square':value===6?'regular hexagon':'regular octagon'}`}</option>)}</select>
+          <div className="legend"><span><i className="dot" style={{background:'#e43f47'}}/> Red = home turn</span><span><i className="dot" style={{background:'#00ad74'}}/> Green = base exit</span></div><table><tbody><tr><td>Track holes / side*</td><td>18</td></tr><tr><td>Reverse corner</td><td>0</td></tr><tr><td>Red marker</td><td>2</td></tr><tr><td>Green start</td><td>8</td></tr><tr><td>Next corner</td><td>18</td></tr><tr><td>Green → next corner</td><td>10 moves</td></tr><tr><td>Separate home run</td><td>5 holes</td></tr><tr><td>Marbles in base initially</td><td>5</td></tr><tr><td>Total outer-track holes*</td><td>{seatCount*18}</td></tr></tbody></table><div className="status">All {room.capacity*5} marbles are visible in their starting racks. Select a card to see legal moves.</div>
+          <h3 style={{marginTop:20}}>LEGAL MOVES</h3><div className="moves">{moves.length?moves.map(move=><button key={move.id} disabled={busy} onClick={()=>perform(()=>play(room,current!.seat,move.id))}>{move.label}</button>):<p className="sub">No legal move for this card. End the turn by discarding it.</p>}</div>{room.status==='finished'&&<p className="status">Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</p>}<div className="recent-panel"><h3>RECENT MOVES</h3><ol className="log">{room.log.slice(0,6).map((line,index)=><li key={index}>{line}</li>)}</ol></div><div className="sub" style={{marginTop:9}}>*The corner at 18 is the next side's position 0, so it is counted once.</div></div></aside>
+      </div>}
+      <footer className="foot">Angry Marbles · geometry-locked arcade preview v{VERSION} · local demonstration · PocketBase integration available when configured</footer><span className="version-stamp">v{VERSION}</span>
+    </div>
   </>;
 }
 function Dashboard(){
@@ -250,6 +210,15 @@ function Dashboard(){
 }
 export default function App(){
   const [loggedIn,setLoggedIn]=useState(pb.authStore.isValid);
+  useEffect(()=>{
+    const mobileQuery=window.matchMedia('(max-width: 1000px), (pointer: coarse)');
+    const mobileAgent=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+    const updateDevice=()=>{document.documentElement.dataset.entryDevice=mobileQuery.matches||mobileAgent?'mobile':'desktop';};
+    updateDevice();
+    mobileQuery.addEventListener('change',updateDevice);
+    window.addEventListener('resize',updateDevice);
+    return ()=>{mobileQuery.removeEventListener('change',updateDevice);window.removeEventListener('resize',updateDevice);};
+  },[]);
   useEffect(()=>pb.authStore.onChange(()=>setLoggedIn(pb.authStore.isValid)),[]);
   if(!hasConfiguredBackend)return <LocalDemo/>;
   return <><span className="version-stamp">v0.4.2</span>{loggedIn?<Dashboard/>:<Login onLogin={()=>setLoggedIn(true)}/>}</>;

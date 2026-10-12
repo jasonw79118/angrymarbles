@@ -1,5 +1,5 @@
 ANGRY MARBLES — DEVELOPMENT HANDOFF
-Milestone: geometry-locked local playable prototype
+Milestone: approved v0.4.2 visual restoration
 Date: 2026-10-12
 
 DELIVERY
@@ -28,7 +28,12 @@ GEOMETRY / LOCAL DEMO
   Browser-local demo allows mode/size selection, legal card moves, and discards without PocketBase.
   Local activity is simulated in one browser; online multiplayer is not yet verified.
   Original Jack, Queen, King, and Joker SVGs are under public/assets/cards/.
+  React SVG rendering and scoped arcade styles are ported from the approved index.html source.
+  Active-seat rotation brings the green base/start rack toward that player; lane words stay readable.
+  Jack sticks out its tongue, Queen winks, King has a curled mustache, Joker has star eyes/tongue.
+  Mobile/tablet entry is detected and the approved responsive layout is preserved.
   GitHub Pages base is lowercase /angrymarbles/ and backend-free builds are supported.
+  The requested design-reference/AGENT_FIX_PROMPT.md was absent; the direct user requirements and original ZIP were followed.
 
 BACKEND
   pb_migrations/1791760000_angry_marbles.js  collections: players, am_rooms, am_stats
@@ -46,7 +51,8 @@ FRONTEND
 
 TESTS COMPLETED
   npm test: 27 tests passed (23 engine and 4 geometry).
-  npm run build: passed after the local demo, shared geometry, match-screen layout, and artwork integration.
+  npm run build: passed after the approved renderer/styles, per-seat orientation, and card-expression updates.
+  Original verify_geometry.py passed with UTF-8 mode enabled.
   npm install: completed with no reported npm audit vulnerabilities.
 
 NOT YET COMPLETED / IMPORTANT

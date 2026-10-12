@@ -6,6 +6,8 @@ React and TypeScript game prototype with locked v0.4.2 board geometry, a browser
 
 - Approved geometry from v0.4.2: square singles board, and four-, six-, or eight-player team polygons; 18 track holes per side, red marker 2, green marker 8, five home holes, and five visible base holes.
 - One authoritative `pb_hooks/boardGeometry.cjs` module supplies coordinates and track indices to the SVG renderer and both game engines.
+- The React board renderer and scoped arcade stylesheet are ported from the original approved v0.4.2 `index.html`; existing auth, lobby, and server-validated move flows remain in place.
+- The active player's base start is rotated to face them; SVG seat labels follow the rotation but stay readable. Mobile phones/tablets are detected at runtime and use the source's responsive board layout.
 - Backend-free local mode supports choosing a game size, playing cards, moving marbles, and discarding.
 - Original Jack, Queen, King, and Joker illustrations from v0.4.2.
 - Separate accounts (you and your wife each sign in from your own device).
@@ -79,4 +81,6 @@ Oracle's Always Free eligible A1 compute resource is currently equivalent to **2
 
 ### Current validation
 
-`npm test`: 27 tests passing. `npm run build`: passes. The local demo was checked in a browser at the exact lowercase `/angrymarbles/` route on desktop and mobile. PocketBase v0.40.x service integration and two-account online play have not yet been completed; do not treat multiplayer as verified.
+`npm test`: 27 tests passing. `npm run build`: passes. The reference package's `verify_geometry.py` passes in UTF-8 mode. The React board was checked against the approved six-player screenshot and verified at the exact lowercase `/angrymarbles/` route on desktop and mobile. PocketBase v0.40.x service integration and two-account online play have not yet been completed; do not treat multiplayer as verified.
+
+The requested `design-reference/AGENT_FIX_PROMPT.md` directory/file was not present in the supplied local project or user-profile search. Restoration followed the explicit requirements in the user request and the original v0.4.2 archive in Downloads.

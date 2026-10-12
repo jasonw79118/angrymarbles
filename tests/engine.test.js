@@ -120,6 +120,7 @@ test('out-of-turn actions are rejected',()=>{
 });
 test('marble color presets are unique',()=>{
  assert.equal(COLORS.length,48);assert.equal(new Set(COLORS.map(color=>color.toLowerCase())).size,48);
+ assert.deepEqual(COLORS.slice(0,6),['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b']);
 });
 test('reshuffling preserves held cards and passes the dealer marker',()=>{
  const r=startGame(room());r.hands[0]=[{rank:'A',suit:'♠',id:'test'}];

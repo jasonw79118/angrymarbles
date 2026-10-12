@@ -1,11 +1,11 @@
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.2';
 export const TRACK_PER_SEAT = boardGeometry.TRACK_PER_SIDE;
 export const TRACK = TRACK_PER_SEAT * 8;
 export const MARBLES = 5;
 export const RUN = 5;
-export const COLORS = ['#ee5253','#318ce7','#f1c40f','#2ecc71','#9b59b6','#f78fb3','#e67e22','#48dbfb','#f368e0','#ff9f43','#1dd1a1','#5f27cd','#ff6b81','#00d2d3','#8395a7','#10ac84','#c8d6e5','#576574','#ff7675','#74b9ff','#ffeaa7','#55efc4','#a29bfe','#fd79a8','#fab1a0','#81ecec','#e17055','#6c5ce7','#00cec9','#d63031','#0984e3','#00b894','#e84393','#fdcb6e','#badc58','#95afc0','#22a6b3','#be2edd','#f0932b','#eb4d4b','#6ab04c','#686de0','#f6e58d','#7ed6df','#ffbe76','#535c68','#130f40','#c7ecee'];
+export const COLORS = ['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3','#f368e0','#ff9f43','#1dd1a1','#5f27cd','#ff6b81','#00d2d3','#8395a7','#10ac84','#c8d6e5','#576574','#ff7675','#74b9ff','#ffeaa7','#55efc4','#a29bfe','#fd79a8','#fab1a0','#81ecec','#e17055','#6c5ce7','#00cec9','#d63031','#0984e3','#00b894','#e84393','#fdcb6e','#badc58','#95afc0','#22a6b3','#be2edd','#f0932b','#eb4d4b','#6ab04c','#686de0','#f6e58d','#7ed6df','#ffbe76','#535c68','#130f40','#c7ecee'];
 
 const FACES = ['J', 'Q', 'K'];
 const FACE = new Set(FACES);
