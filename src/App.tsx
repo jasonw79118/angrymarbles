@@ -1,5 +1,5 @@
 import {useEffect,useState, type FormEvent} from 'react';
-import {pb,hasConfiguredBackend,gameApi,type Profile,type PublicGame,type GameMode,type Relation} from './pb';
+import {authApi,authStore,hasConfiguredBackend,gameApi,setSession,subscribeRoom,type Profile,type PublicGame,type GameMode,type Relation} from './cloudflare';
 import {COLORS,possibleSeats,startGame,legalMoves,play,MARBLES} from './engine.js';
 import type {RoomState,Player,Card} from './types';
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
@@ -17,9 +17,13 @@ function Login({onLogin}:{onLogin:()=>void}){
       if(flow==='signUp'){
         const name=String(data.get('name')||'').trim();
         if(name.length<2||name.length>24)throw Error('Choose a player name between 2 and 24 characters.');
-        await pb.collection('players').create({email,password,passwordConfirm:password,name});
+        const session=await authApi.register(name,email,password);
+        setSession(session.token);
+        onLogin();
+        return;
       }
-      await pb.collection('players').authWithPassword(email,password);
+      const session=await authApi.login(email,password);
+      setSession(session.token);
       onLogin();
     }catch(e){setError(errText(e));}finally{setBusy(false);}
   }
@@ -74,12 +78,11 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     let active=true;
     const update=async()=>{try{const state=await gameApi.state<RoomState>(code);if(active)setRoom(state);}catch(e){if(active)setError(errText(e));}};
     void update();
-    const topic=`angry_marbles:${code}`;
-    pb.realtime.subscribe(topic,()=>void update()).catch(e=>{if(active)setError('Live updates unavailable: '+errText(e));});
+    const unsubscribe=subscribeRoom(code,()=>void update(),e=>{if(active)setError('Live updates unavailable: '+errText(e));});
     const periodic=setInterval(()=>void update(),30000);
     const visibility=()=>{if(document.visibilityState==='visible')void update();};
     document.addEventListener('visibilitychange',visibility);
-    return ()=>{active=false;void pb.realtime.unsubscribe(topic);clearInterval(periodic);document.removeEventListener('visibilitychange',visibility);};
+    return ()=>{active=false;unsubscribe();clearInterval(periodic);document.removeEventListener('visibilitychange',visibility);};
   },[code]);
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
   useEffect(()=>setCardIndex(0),[room?.turnNumber]);
@@ -105,14 +108,14 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
         {room.status==='playing'&&<div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>setCardIndex(index)}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>Dealer: {room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}<br/>Draw: {room.deckCount} · Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||!room.myHand.length} onClick={()=>call(()=>gameApi.discard(code,cardIndex))}>Discard selected</button>}</div>}
         {room.status==='waiting'&&<div className="cardbar"><span className="yourhand">ROOM<br/><small>{room.code}</small></span><div className="card-note">{room.players.length} of {room.capacity} seats filled · {room.mode==='doubles'?'Teammates sit opposite.':'Singles game.'} Empty seats can be filled by computer players.</div>{room.startedCountdown?<span className="pill green">Bots join in {secondsLeft}s</span>:isHost?<button className="primary" disabled={busy} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button>:<span className="pill">Waiting for host</span>}</div>}
         {room.status==='finished'&&<div className="cardbar"><span className="yourhand">GAME<br/><small>COMPLETE</small></span><div className="card-note"><b>Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</b><br/>Wins, losses, bumps, and assists were saved.</div><button className="primary" onClick={onLeave}>New game</button></div>}
-        <div className="bottomline">{room.status==='playing'?'Only your hand and your server-validated legal moves are visible to you.':'Your room and seat are managed by PocketBase.'}</div>
+        <div className="bottomline">{room.status==='playing'?'Only your hand and your server-validated legal moves are visible to you.':'Your room and seat are managed by Cloudflare.'}</div>
       </section>
       <aside className="panel side right"><div><h3>BOARD SETTINGS</h3><div className="sub">{room.mode==='doubles'?'TEAMS OF TWO':'SINGLES'} · {room.capacity} PLAYER SIDES</div><div className="legend"><span><i className="dot" style={{background:'#e43f47'}}/> Red = home turn</span><span><i className="dot" style={{background:'#00ad74'}}/> Green = base exit</span></div><table><tbody><tr><td>Track holes / side</td><td>18</td></tr><tr><td>Red marker</td><td>2</td></tr><tr><td>Green start</td><td>8</td></tr><tr><td>Green → next corner</td><td>10 moves</td></tr><tr><td>Separate home run</td><td>5 holes</td></tr><tr><td>Total track holes</td><td>{room.track}</td></tr><tr><td>Cards in draw pile</td><td>{room.deckCount}</td></tr><tr><td>Discards</td><td>{room.discards}</td></tr></tbody></table>
         {room.status==='waiting'&&<><div className="status">{room.startedCountdown?'The room will fill open seats with computer players when the timer ends.':'Waiting for invited players to join.'}</div><label className="block">Pick a marble color</label><div className="palette">{COLORS.map(color=>{const taken=room.players.some(player=>player.color.toLowerCase()===color.toLowerCase()&&player.seat!==room.mySeat);return <button key={color} title={taken?`${color} (taken)`:color} aria-label={`Marble color ${color}`} disabled={taken||busy} className={`swatch ${me?.color.toLowerCase()===color.toLowerCase()?'chosen':''}`} style={{background:color}} onClick={()=>call(()=>gameApi.color(code,color))}/>;})}</div><div className="custom"><label>Custom color <input type="color" value={customColor} onChange={event=>setCustomColor(event.target.value)}/></label><button disabled={busy} onClick={()=>call(()=>gameApi.color(code,customColor))}>Use custom</button></div></>}
         {room.status==='playing'&&<><h3 style={{marginTop:20}}>LEGAL MOVES</h3><div className="moves">{filtered.length?filtered.slice(0,100).map(move=><button key={move.id} disabled={busy||!isTurn} onClick={()=>call(()=>gameApi.move(code,move.id))}>{move.label}</button>):<p className="sub">{isTurn?'No legal move for this card. Discard it to pass.':'Waiting for the active player.'}</p>}</div></>}
         {room.status==='finished'&&<p className="status">Match complete.</p>}
         <div className="recent-panel"><h3>RECENT MOVES</h3><ol className="log">{room.log.slice(0,8).map((line,index)=><li key={index}>{line}</li>)}</ol></div></div></aside>
-    </div><footer className="foot">Angry Marbles · geometry-locked arcade edition v{VERSION} · PocketBase</footer>
+    </div><footer className="foot">Angry Marbles · geometry-locked arcade edition v{VERSION} · Cloudflare Workers</footer>
   </div>;
 }
 type LocalGame = Omit<RoomState,'discards'> & {turnIndex:number;hands:Record<number,Card[]>;deck:Card[];discards:Card[];boardSides:number};
@@ -164,7 +167,7 @@ function LocalDemo(){
           <div className="legend"><span><i className="dot" style={{background:'#e43f47'}}/> Red = home turn</span><span><i className="dot" style={{background:'#00ad74'}}/> Green = base exit</span></div><table><tbody><tr><td>Track holes / side*</td><td>18</td></tr><tr><td>Reverse corner</td><td>0</td></tr><tr><td>Red marker</td><td>2</td></tr><tr><td>Green start</td><td>8</td></tr><tr><td>Next corner</td><td>18</td></tr><tr><td>Green → next corner</td><td>10 moves</td></tr><tr><td>Separate home run</td><td>5 holes</td></tr><tr><td>Marbles in base initially</td><td>5</td></tr><tr><td>Total outer-track holes*</td><td>{seatCount*18}</td></tr></tbody></table><div className="status">All {room.capacity*5} marbles are visible in their starting racks. Select a card to see legal moves.</div>
           <h3 style={{marginTop:20}}>LEGAL MOVES</h3><div className="moves">{moves.length?moves.map(move=><button key={move.id} disabled={busy} onClick={()=>perform(()=>play(room,current!.seat,move.id))}>{move.label}</button>):<p className="sub">No legal move for this card. End the turn by discarding it.</p>}</div>{room.status==='finished'&&<p className="status">Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</p>}<div className="recent-panel"><h3>RECENT MOVES</h3><ol className="log">{room.log.slice(0,6).map((line,index)=><li key={index}>{line}</li>)}</ol></div><div className="sub" style={{marginTop:9}}>*The corner at 18 is the next side's position 0, so it is counted once.</div></div></aside>
       </div>}
-      <footer className="foot">Angry Marbles · geometry-locked arcade preview v{VERSION} · local demonstration · PocketBase integration available when configured</footer><span className="version-stamp">v{VERSION}</span>
+      <footer className="foot">Angry Marbles · geometry-locked arcade preview v{VERSION} · local demonstration · Cloudflare Worker integration available when configured</footer><span className="version-stamp">v{VERSION}</span>
     </div>
   </>;
 }
@@ -186,8 +189,8 @@ function Dashboard(){
     await work(async()=>{const room=await gameApi.join(code.trim().toUpperCase(),rel);navigate(room.code,rel);});
   }
   function leave(){setActiveCode('');history.replaceState(null,'',window.location.pathname);gameApi.profile().then(setProfile).catch(()=>{});}
-  if(activeCode&&profile)return <><header className="topbar"><span className="brand">● Angry Marbles</span><button onClick={()=>pb.authStore.clear()}>Sign out</button></header><Room code={activeCode} onLeave={leave} profile={profile}/><footer>Angry Marbles · v{VERSION} · PocketBase</footer></>;
-  return <><header className="topbar"><span className="brand">● Angry Marbles</span><div className="toolbar"><span>{profile?.displayName||'Loading player…'}</span><button onClick={()=>pb.authStore.clear()}>Sign out</button></div></header>
+  if(activeCode&&profile)return <><header className="topbar"><span className="brand">● Angry Marbles</span><button onClick={()=>void authApi.logout()}>Sign out</button></header><Room code={activeCode} onLeave={leave} profile={profile}/><footer>Angry Marbles · v{VERSION} · Cloudflare Workers</footer></>;
+  return <><header className="topbar"><span className="brand">● Angry Marbles</span><div className="toolbar"><span>{profile?.displayName||'Loading player…'}</span><button onClick={()=>void authApi.logout()}>Sign out</button></div></header>
     <main className="container"><div className="hero"><small className="eyebrow">CARD-POWERED MARBLE MAYHEM</small><h1>GOOD FRIENDS.<br/><span>FIERCE RIVALS.</span></h1><p>Create a round, invite your wife or friends, and let computer players take the open seats when the wait ends.</p></div>
       {error&&<div className="error" role="alert">{error}</div>}
       {profile?<div className="score-strip">{([['Games',profile.games],['Wins',profile.wins],['Losses',profile.losses],['Win rate',rate+'%'],['Bumps',profile.bumps],['Assists',profile.assists]] as const).map(([label,val])=><div key={label}><strong>{val}</strong><small>{label}</small></div>)}</div>:<p className="small">Loading player account…</p>}
@@ -206,10 +209,10 @@ function Dashboard(){
           {matches.length?matches.map(m=><div className="public-room" key={m.code}><span>{m.code} · {m.humans}/{m.capacity} people</span><button disabled={busy} onClick={()=>enter(m.code)}>Join</button></div>):<p className="small">No matching open tables right now.</p>}
           <hr/><h3>Your player name</h3><div className="custom"><input value={nickname} maxLength={24} onChange={e=>setNickname(e.target.value)} placeholder={profile?.displayName||'Player name'}/><button disabled={busy||nickname.trim().length<2} onClick={()=>work(async()=>{const value=await gameApi.updateName(nickname);setProfile(value);setNickname('');})}>Update</button></div>
         </section></div><section className="footnote"><h3>Your house rules</h3><p>Two decks and all four jokers. Five starting cards and a draw every turn. Splittable sevens and nines, backward eights, teammate bumps, exact home-run movement, and automatic reshuffles. No duplicate marble colors.</p></section>
-    </main><footer>Angry Marbles · v{VERSION} · PocketBase edition · Provisional board geometry</footer></>;
+    </main><footer>Angry Marbles · v{VERSION} · Cloudflare Workers edition</footer></>;
 }
 export default function App(){
-  const [loggedIn,setLoggedIn]=useState(pb.authStore.isValid);
+  const [loggedIn,setLoggedIn]=useState(authStore.isValid);
   useEffect(()=>{
     const mobileQuery=window.matchMedia('(max-width: 1000px), (pointer: coarse)');
     const mobileAgent=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
@@ -219,7 +222,11 @@ export default function App(){
     window.addEventListener('resize',updateDevice);
     return ()=>{mobileQuery.removeEventListener('change',updateDevice);window.removeEventListener('resize',updateDevice);};
   },[]);
-  useEffect(()=>pb.authStore.onChange(()=>setLoggedIn(pb.authStore.isValid)),[]);
+  useEffect(()=>{
+    const unsubscribe=authStore.onChange(()=>setLoggedIn(authStore.isValid));
+    if(authStore.isValid)authApi.me().catch(()=>authStore.clear());
+    return unsubscribe;
+  },[]);
   if(!hasConfiguredBackend)return <LocalDemo/>;
   return <><span className="version-stamp">v0.4.2</span>{loggedIn?<Dashboard/>:<Login onLogin={()=>setLoggedIn(true)}/>}</>;
 }

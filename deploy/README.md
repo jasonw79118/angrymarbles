@@ -1,5 +1,7 @@
 # Oracle Always Free Linux / PocketBase backend host (planned)
 
+> Legacy deployment notes. The active backend direction is Cloudflare Workers, D1, and Durable Objects; do not use this PocketBase/Oracle guide for the current setup. See the Cloudflare backend setup in the root README.
+
 This project requires a **separate, always-on backend host** because GitHub Pages only serves static files. Oracle's Always Free A1 VM is one possibility, but availability is not guaranteed; check your region and account charges before creating anything.
 
 1. Create an Always Free eligible VM in Oracle Cloud. For A1, use **Linux ARM64** PocketBase; for AMD, use x64. Restrict inbound SSH to trusted IP addresses, and allow HTTP/HTTPS for TLS issuance and game traffic. Observe Oracle network security rules **and** the instance firewall.

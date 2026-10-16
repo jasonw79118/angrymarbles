@@ -1,15 +1,15 @@
 ANGRY MARBLES — DEVELOPMENT HANDOFF
-Milestone: approved v0.4.2 visual restoration
-Date: 2026-10-12
+Milestone: approved v0.4.2 visual restoration; Cloudflare backend migration in progress
+Date: 2026-10-15
 
 DELIVERY
   Destination was verified empty; Git initialized on main with origin set to the supplied repository.
   Remote returned no refs at initialization; no remote history was changed and nothing was pushed.
-  PocketBase 0.40.x JS hooks and schema migrations are included from the supplied starter.
+  Cloudflare Worker, D1, and Durable Object scaffolding has been added but is not deployed.
   GitHub repository target: AngryMarbles
   Frontend hosting target: GitHub Pages
-  Backend host: separate always-on HTTPS VM, Oracle Always Free eligible A1 is an option.
-  No deployment/account provisioning or GitHub push performed automatically.
+  Backend host: Cloudflare Workers with D1 and Durable Objects.
+  No Cloudflare provisioning, remote deployment, or GitHub push performed.
 
 GAMES / USERS
   - Password-authenticated player accounts, unique room codes.
@@ -25,7 +25,7 @@ GEOMETRY / LOCAL DEMO
   pb_hooks/boardGeometry.cjs is the shared source for renderer and game-engine indices.
   Square singles; 4/6/8-player team polygons; 18 unique track holes per side.
   Red marker 2, green exit 8, five home holes, five visible base-rack holes per side.
-  Browser-local demo allows mode/size selection, legal card moves, and discards without PocketBase.
+  Browser-local demo allows mode/size selection, legal card moves, and discards without a backend.
   Local activity is simulated in one browser; online multiplayer is not yet verified.
   Original Jack, Queen, King, and Joker SVGs are under public/assets/cards/.
   React SVG rendering and scoped arcade styles are ported from the approved index.html source.
@@ -36,18 +36,19 @@ GEOMETRY / LOCAL DEMO
   The requested design-reference/AGENT_FIX_PROMPT.md was absent; the direct user requirements and original ZIP were followed.
 
 BACKEND
-  pb_migrations/1791760000_angry_marbles.js  collections: players, am_rooms, am_stats
-  pb_hooks/main.pb.js                    authenticated routes, cron
-  pb_hooks/controller.js                 room engine adapter and state filtering
-  pb_hooks/engine.js                     rules CommonJS copy for PocketBase Goja
+  worker/index.ts                       account/session API and authenticated routing
+  worker/GameRoom.ts                    authoritative room state, game actions, and WebSockets
+  worker/auth.ts                        password and session-token hashing
+  worker/migrations/                    D1 schema migrations
+  wrangler.jsonc                        Worker, D1, and Durable Object bindings
 
 FRONTEND
   src/App.tsx                             account/room/dashboard screens
-  src/pb.ts                               PocketBase web SDK adapter
+  src/cloudflare.ts                       Worker API client and room WebSocket subscription
   src/engine.js                           engine for board drawing and tests
   src/main.tsx                            React entrypoint
   .github/workflows/pages.yml            GitHub Pages workflow
-  deploy/                                 Oracle Linux systemd/Caddy examples
+  .github/workflows/pages.yml             static Pages deployment with Worker API configuration
 
 TESTS COMPLETED
   npm test: 27 tests passed (23 engine and 4 geometry).
@@ -56,20 +57,20 @@ TESTS COMPLETED
   npm install: completed with no reported npm audit vulnerabilities.
 
 NOT YET COMPLETED / IMPORTANT
-  PocketBase 0.40 integration test (migrations, auth, custom routes, realtime signals, and cron).
-  Browser-to-server tests using two real PocketBase player accounts.
-  PocketBase installation and service integration.
-  OCI VM, DNS, TLS setup; push to GitHub and production Pages deployment.
+  Local Worker/D1 integration tests, including authentication, room actions, and WebSocket behavior.
+  Browser-to-server tests using two real player accounts.
+  Create the D1 database, replace the placeholder database ID, apply remote migrations, and deploy the Worker.
+  Set the GitHub Pages Actions variable VITE_API_BASE_URL to the deployed Worker /api URL; deploy and verify Pages.
   Security hardening: verification email, password reset, abuse controls, backups.
   Compare house-rule edge cases including Joker replacement collisions and split/home-run interactions.
   Bot turns are immediate after human move; not yet delayed/animated.
-  Actual real-time delivery depends on validating PocketBase SSE custom topic subscriptions.
+  Verify Durable Object alarms and WebSocket invalidation behavior against a deployed Worker.
 
 GUARDRAILS
   Never commit pb_data, executable, credentials, or admin tokens.
-  GitHub Pages is static-only; VITE_POCKETBASE_URL must point to another HTTPS host.
-  Do not make built-in am_rooms API list/view public: contains FULL hands and deck!
-  Do not use frontend game logic to validate moves; controller calls engine server-side.
+  GitHub Pages is static-only; VITE_API_BASE_URL must point to the deployed Worker HTTPS /api endpoint.
+  Do not expose Durable Object room internals: they contain the full deck and every private hand.
+  Do not use frontend game logic to validate online moves; GameRoom calls the rules engine server-side.
 
 LOCAL DEMO
   npm ci

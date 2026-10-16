@@ -25,7 +25,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Build static frontend
         env:
-          VITE_POCKETBASE_URL: ${{ vars.VITE_POCKETBASE_URL }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_BASE_PATH: /angrymarbles/
         run: npm run build
       - uses: actions/configure-pages@v5
