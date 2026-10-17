@@ -8,6 +8,7 @@ type Props = {
   pieces: Piece[];
   activeSeat: number;
   selectedPieceIds?: string[];
+  onPieceSelect?: (pieceId:string)=>void;
   showIndices?: boolean;
 };
 
@@ -16,9 +17,29 @@ type Point = { x: number; y: number };
 const COLORS = ['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3'];
 const add = (origin: Point, direction: Point, distance = 1): Point => ({x:origin.x+direction.x*distance,y:origin.y+direction.y*distance});
 
-export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],showIndices=false}:Props){
+export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],onPieceSelect,showIndices=false}:Props){
   const svgRef=useRef<SVGSVGElement>(null);
   const previousRef=useRef<Piece[]>([]);
+  const onPieceSelectRef=useRef(onPieceSelect);
+
+  useEffect(()=>{onPieceSelectRef.current=onPieceSelect;},[onPieceSelect]);
+  useEffect(()=>{
+    const svg=svgRef.current;
+    if(!svg)return;
+    const selectPiece=(event:Event)=>{
+      const target=event.target;
+      if(!(target instanceof Element))return;
+      const marble=target.closest<SVGGElement>('[data-piece-id]');
+      const id=marble?.getAttribute('data-piece-id');
+      if(id&&!id.startsWith('moving-'))onPieceSelectRef.current?.(id);
+    };
+    const selectWithKeyboard=(event:KeyboardEvent)=>{
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPiece(event);}
+    };
+    svg.addEventListener('click',selectPiece);
+    svg.addEventListener('keydown',selectWithKeyboard);
+    return ()=>{svg.removeEventListener('click',selectPiece);svg.removeEventListener('keydown',selectWithKeyboard);};
+  },[]);
 
   useEffect(()=>{
     const svg=svgRef.current;
@@ -34,7 +55,10 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       parent.append(node);return node;
     };
     const marble=(position:Point,seat:number,id:string,selected=false)=>{
-      const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`});
+      const moving=id.startsWith('moving-');
+      const slot=Number(id.split(':')[1]);
+      const owner=seatPlayers.get(seat)?.name||`Player ${seat+1}`;
+      const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:0,'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
       if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
       el('circle',{cx:position.x,cy:position.y,r:10.5,fill:`url(#ball${seat%COLORS.length})`,stroke:selected?'#fff2ad':'#fff8','stroke-width':selected?2.4:1.3},group);
       el('ellipse',{cx:position.x-3.3,cy:position.y-3.8,rx:3.1,ry:1.9,fill:'#fff',opacity:.72},group);

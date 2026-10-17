@@ -48,9 +48,9 @@ function Login({onLogin}:{onLogin:()=>void}){
     </form>
   </section>;
 }
-function Board({room,selectedPieceIds=[]}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'|'mySeat'>;selectedPieceIds?:string[]}){
+function Board({room,selectedPieceIds=[],onPieceSelect}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'|'mySeat'>;selectedPieceIds?:string[];onPieceSelect:(pieceId:string)=>void}){
   const sideCount=room.boardSides||boardGeometry.boardSides(room.mode,room.capacity);
-  return <ApprovedBoard sideCount={sideCount} players={room.players} pieces={room.pieces} activeSeat={room.mySeat??room.players[0]?.seat??0} selectedPieceIds={selectedPieceIds} showIndices/>;
+  return <ApprovedBoard sideCount={sideCount} players={room.players} pieces={room.pieces} activeSeat={room.mySeat??room.players[0]?.seat??0} selectedPieceIds={selectedPieceIds} onPieceSelect={onPieceSelect} showIndices/>;
 }
 function CardChip({card,selected,onClick}:{card:Card,selected:boolean,onClick:()=>void}){
   const red=card.suit==='♥'||card.suit==='♦';
@@ -75,7 +75,7 @@ function PlayerList({room}:{room:Pick<RoomState,'players'|'turnSeat'|'dealerSeat
 
 function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profile}){
   const [room,setRoom]=useState<RoomState|null>(null),[error,setError]=useState('');
-  const [cardIndex,setCardIndex]=useState(0),[selectedMoveId,setSelectedMoveId]=useState(''),[customColor,setCustomColor]=useState('#ffffff');
+  const [cardIndex,setCardIndex]=useState(0),[selectedPieceId,setSelectedPieceId]=useState(''),[selectedMoveId,setSelectedMoveId]=useState(''),[customColor,setCustomColor]=useState('#ffffff');
   const [now,setNow]=useState(Date.now()),[busy,setBusy]=useState(false);
   async function refresh(){try{setRoom(await gameApi.state<RoomState>(code));setError('');}catch(e){setError(errText(e));}}
   useEffect(()=>{
@@ -89,7 +89,7 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     return ()=>{active=false;unsubscribe();clearInterval(periodic);document.removeEventListener('visibilitychange',visibility);};
   },[code]);
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
-  useEffect(()=>{setCardIndex(0);setSelectedMoveId('');},[room?.turnNumber]);
+  useEffect(()=>{setCardIndex(0);setSelectedPieceId('');setSelectedMoveId('');},[room?.turnNumber]);
   useEffect(()=>{
     if(room?.status==='waiting'&&room.startedCountdown&&room.fillAt&&Date.now()>=room.fillAt){
       gameApi.fill(code).then(()=>refresh()).catch(e=>setError(errText(e)));
@@ -98,7 +98,9 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
   async function call(action:()=>Promise<unknown>){setBusy(true);setError('');try{await action();await refresh();}catch(e){setError(errText(e));}finally{setBusy(false);}}
   if(!room)return <div className="panel"><p>{error||`Loading game room ${code}…`}</p><button onClick={onLeave}>Go back</button></div>;
   const filtered=room.myMoves.filter(m=>m.cardIndex===cardIndex)||[];
-  const selectedMove=filtered.find(move=>move.id===selectedMoveId);
+  const availableMoves=selectedPieceId?filtered.filter(move=>move.pieceIds?.includes(selectedPieceId)):[];
+  const selectedMove=availableMoves.find(move=>move.id===selectedMoveId);
+  const highlightedPieces=selectedMove?.pieceIds||(selectedPieceId?[selectedPieceId]:[...new Set(filtered.flatMap(move=>move.pieceIds||[]))]);
   const me=room.players.find(p=>p.seat===room.mySeat);
   const isHost=room.hostId===profile.userId;
   const isTurn=room.status==='playing'&&room.mySeat===room.turnSeat;
@@ -109,15 +111,15 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     {error&&<div className="status" role="alert">{error}</div>}
     <div className="layout">
       <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={room}/></div><div className="notes"><strong style={{color:'#ffd45c'}}>BASE = five waiting marbles. HOME = five empty holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
-      <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">TABLE VIEW · P{(room.mySeat??0)+1} AT THE BOTTOM</span><Board room={room} selectedPieceIds={selectedMove?.pieceIds}/></div>
-        {room.status==='playing'&&<div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{setCardIndex(index);setSelectedMoveId('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>Dealer: {room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}<br/>Draw: {room.deckCount} · Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||!room.myHand.length||(filtered.length>0&&!selectedMove)} onClick={()=>call(()=>selectedMove?gameApi.move(code,selectedMove.id):gameApi.discard(code,cardIndex))}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
+      <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">TABLE VIEW · P{(room.mySeat??0)+1} AT THE BOTTOM</span><Board room={room} selectedPieceIds={highlightedPieces} onPieceSelect={pieceId=>{if(!filtered.some(move=>move.pieceIds?.includes(pieceId))){setSelectedPieceId('');setSelectedMoveId('');setError('That marble cannot play this card. Glowing marbles show legal choices.');return;}setError('');setSelectedPieceId(current=>current===pieceId?'':pieceId);setSelectedMoveId('');}}/></div>
+        {room.status==='playing'&&<div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{setCardIndex(index);setSelectedPieceId('');setSelectedMoveId('');setError('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>Dealer: {room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}<br/>Draw: {room.deckCount} · Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||!room.myHand.length||(filtered.length>0&&!selectedMove)} onClick={()=>call(()=>selectedMove?gameApi.move(code,selectedMove.id):gameApi.discard(code,cardIndex))}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
         {room.status==='waiting'&&<div className="cardbar"><span className="yourhand">ROOM<br/><small>{room.code}</small></span><div className="card-note">{room.players.length} of {room.capacity} seats filled · {room.mode==='doubles'?'Teammates sit opposite.':'Singles game.'} Empty seats can be filled by computer players.</div>{room.startedCountdown&&<span className="pill green">Bots join in {secondsLeft}s</span>}{isHost?<><button className="primary" disabled={busy||room.startedCountdown} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button><button disabled={busy} onClick={()=>call(()=>gameApi.fillNow(code))}>Play computers now</button></>:!room.startedCountdown&&<span className="pill">Waiting for host</span>}</div>}
         {room.status==='finished'&&<div className="cardbar"><span className="yourhand">GAME<br/><small>COMPLETE</small></span><div className="card-note"><b>Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</b><br/>Wins, losses, bumps, and assists were saved.</div><button className="primary" onClick={onLeave}>New game</button></div>}
         <div className="bottomline">{room.status==='playing'?'Only your hand and your server-validated legal moves are visible to you.':'Your room and seat are managed by Cloudflare.'}</div>
       </section>
       <aside className="panel side right"><div><h3>BOARD SETTINGS</h3><div className="sub">{room.mode==='doubles'?'TEAMS OF TWO':'SINGLES'} · {room.capacity} PLAYER SIDES</div><div className="legend"><span><i className="dot" style={{background:'#e43f47'}}/> Red = home turn</span><span><i className="dot" style={{background:'#00ad74'}}/> Green = base exit</span></div><table><tbody><tr><td>Track holes / side</td><td>18</td></tr><tr><td>Red marker</td><td>2</td></tr><tr><td>Green start</td><td>8</td></tr><tr><td>Green → next corner</td><td>10 moves</td></tr><tr><td>Separate home run</td><td>5 holes</td></tr><tr><td>Total track holes</td><td>{room.track}</td></tr><tr><td>Cards in draw pile</td><td>{room.deckCount}</td></tr><tr><td>Discards</td><td>{room.discards}</td></tr></tbody></table>
         {room.status==='waiting'&&<><div className="status">{room.startedCountdown?'The room will fill open seats with computer players when the timer ends.':'Waiting for invited players to join.'}</div><label className="block">Pick a marble color</label><div className="palette">{COLORS.map(color=>{const taken=room.players.some(player=>player.color.toLowerCase()===color.toLowerCase()&&player.seat!==room.mySeat);return <button key={color} title={taken?`${color} (taken)`:color} aria-label={`Marble color ${color}`} disabled={taken||busy} className={`swatch ${me?.color.toLowerCase()===color.toLowerCase()?'chosen':''}`} style={{backgroundColor:color}} onClick={()=>call(()=>gameApi.color(code,color))}/>;})}</div><div className="custom"><label>Custom color <input type="color" value={customColor} onChange={event=>setCustomColor(event.target.value)}/></label><button disabled={busy} onClick={()=>call(()=>gameApi.color(code,customColor))}>Use custom</button></div></>}
-        {room.status==='playing'&&<><h3 className="move-heading">CHOOSE A MOVE</h3><div className="moves">{filtered.length?filtered.slice(0,100).map(move=><button type="button" key={move.id} disabled={busy||!isTurn} aria-pressed={selectedMove?.id===move.id} className="move-option" onClick={()=>setSelectedMoveId(move.id)}><span>{move.label}</span>{move.pieceIds?.length?<small>Pieces: {move.pieceIds.map(pieceName).join(' + ')}</small>:null}</button>):<p className="sub">{isTurn?'No legal move for this card. Choose Pass turn.':'Waiting for the active player.'}</p>}</div></>}
+        {room.status==='playing'&&<><h3 className="move-heading">CHOOSE A MOVE</h3><div className="moves">{filtered.length?selectedPieceId?availableMoves.length?availableMoves.slice(0,100).map(move=><button type="button" key={move.id} disabled={busy||!isTurn} aria-pressed={selectedMove?.id===move.id} className="move-option" onClick={()=>setSelectedMoveId(move.id)}><span>{move.label}</span>{move.pieceIds?.length?<small>Pieces: {move.pieceIds.map(pieceName).join(' + ')}</small>:null}</button>):<p className="sub">This marble cannot play that card. Tap a highlighted marble or tap it again to clear.</p>:<p className="sub">Tap one of the glowing marbles on the board to see its legal moves.</p>:<p className="sub">{isTurn?'No legal move for this card. Choose Pass turn.':'Waiting for the active player.'}</p>}</div></>}
         {room.status==='finished'&&<p className="status">Match complete.</p>}
         <div className="recent-panel"><h3>RECENT MOVES</h3><ol className="log">{room.log.slice(0,8).map((line,index)=><li key={index}>{line}</li>)}</ol></div></div></aside>
     </div><footer className="foot">Angry Marbles · geometry-locked arcade edition v{VERSION} · Cloudflare Workers</footer>
