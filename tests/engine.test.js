@@ -40,6 +40,14 @@ test('split 7 allocates exactly seven forward spaces between two marbles',()=>{
  assert.ok(splits.length>0);
  assert.ok(splits.every(move=>move.ops[0].steps>0&&move.ops[1].steps>0&&move.ops[0].steps+move.ops[1].steps===7));
 });
+test('room view identifies both marbles in split move choices',()=>{
+ const r=startGame(room());r.hands[0]=[{rank:'7',suit:'♣',id:'test'}];
+ for(const [id,progress] of [['0:0',10],['0:1',24]]) Object.assign(r.pieces.find(p=>p.id===id),{loc:'track',progress});
+ const split=roomView(r,'u0').myMoves.find(move=>move.label.startsWith('Split 7:'));
+ assert.ok(split);
+ assert.equal(split.pieceIds.length,2);
+ assert.notEqual(split.pieceIds[0],split.pieceIds[1]);
+});
 test('home run cannot be jumped over',()=>{
  const r=startGame(room());r.hands[0]=[{rank:'2',suit:'♠',id:'test'}];
  Object.assign(r.pieces.find(p=>p.id==='0:0'),{loc:'run',run:0});

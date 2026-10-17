@@ -194,7 +194,11 @@ function choicesForStep(room, seat, piece, steps) {
   if (piece.loc==='track' && steps>0) options.push({kind:'move',piece:piece.id,steps,home:'enter'});
   return options.filter(op=>executeOps(clone(room),seat,[op])!==null);
 }
-const stepLabel = op => op.kind === 'release' ? `release ${op.piece}` : op.kind === 'joker' ? `swap ${op.piece} with ${op.target}` : `${op.piece} ${op.steps>0?'+':''}${op.steps}${op.home==='enter'?' → home':''}`;
+const pieceLabel = id => {
+  const [seat,slot]=String(id).split(':').map(Number);
+  return `P${seat+1} marble ${slot+1}`;
+};
+const stepLabel = op => op.kind === 'release' ? `${pieceLabel(op.piece)} from base` : op.kind === 'joker' ? `Swap ${pieceLabel(op.piece)} with ${pieceLabel(op.target)}` : `${pieceLabel(op.piece)} ${op.steps>0?'+':''}${op.steps}${op.home==='enter'?' → HOME':''}`;
 export function actingSeat(room, seat) {
   const done = room.mode==='doubles' && room.pieces.filter(p=>p.seat===seat).every(p=>p.loc==='home');
   return done ? boardGeometry.oppositeSeat(seat,room.boardSides) : seat;
@@ -312,7 +316,7 @@ export function roomView(room, userId) {
     pieces:room.pieces||[], mySeat:me?.seat??null,
     myHand:me && room.hands?room.hands[me.seat]:[],
     turnSeat:room.status==='playing'?room.players[room.turnIndex].seat:null,
-    myMoves:me?legalMoves(room,me.seat).map(({id,label,cardIndex})=>({id,label,cardIndex})):[],
+    myMoves:me?legalMoves(room,me.seat).map(({id,label,cardIndex,ops})=>({id,label,cardIndex,pieceIds:[...new Set(ops.flatMap(op=>[op.piece,op.target].filter(Boolean)))]})):[],
     discards:room.discards?.length||0, deckCount:room.deck?.length||0,
     topDiscard:room.discards?.at(-1)||null, log:room.log||[],
     winners:room.winners||null,colors:COLORS,track:trackSize(room),trackPerSeat:TRACK_PER_SEAT,boardSides:room.boardSides||boardSidesFor(room),run:RUN,marbles:MARBLES,

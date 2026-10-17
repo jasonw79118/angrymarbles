@@ -7,6 +7,7 @@ type Props = {
   players: Player[];
   pieces: Piece[];
   activeSeat: number;
+  selectedPieceIds?: string[];
   showIndices?: boolean;
 };
 
@@ -15,7 +16,7 @@ type Point = { x: number; y: number };
 const COLORS = ['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3'];
 const add = (origin: Point, direction: Point, distance = 1): Point => ({x:origin.x+direction.x*distance,y:origin.y+direction.y*distance});
 
-export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showIndices=false}:Props){
+export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],showIndices=false}:Props){
   const svgRef=useRef<SVGSVGElement>(null);
   const previousRef=useRef<Piece[]>([]);
 
@@ -25,15 +26,17 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
     const NS='http://www.w3.org/2000/svg';
     const geo=boardGeometry.geometry(sideCount);
     const seatPlayers=new Map(players.map(player=>[player.seat,player]));
+    const selectedPieces=new Set(selectedPieceIds);
     const colorFor=(seat:number)=>seatPlayers.get(seat)?.color||COLORS[seat%COLORS.length];
     const el=(tag:string,attrs:Record<string,string|number|undefined>={},parent:Element=svg)=>{
       const node=document.createElementNS(NS,tag);
       for(const [key,value] of Object.entries(attrs))if(value!==undefined)node.setAttribute(key,String(value));
       parent.append(node);return node;
     };
-    const marble=(position:Point,seat:number,id:string)=>{
-      const group=el('g',{'data-id':id,'data-piece-id':id,class:'marble'});
-      el('circle',{cx:position.x,cy:position.y,r:10.5,fill:`url(#ball${seat%COLORS.length})`,stroke:'#fff8','stroke-width':'1.3'},group);
+    const marble=(position:Point,seat:number,id:string,selected=false)=>{
+      const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`});
+      if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
+      el('circle',{cx:position.x,cy:position.y,r:10.5,fill:`url(#ball${seat%COLORS.length})`,stroke:selected?'#fff2ad':'#fff8','stroke-width':selected?2.4:1.3},group);
       el('ellipse',{cx:position.x-3.3,cy:position.y-3.8,rx:3.1,ry:1.9,fill:'#fff',opacity:.72},group);
       el('circle',{cx:position.x-5.2,cy:position.y-5.2,r:1.05,fill:'#fff',opacity:.88},group);
       return group;
@@ -115,19 +118,20 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
         const normalizedAngle=(angle+boardOrientation+360)%360;
         const readableAngle=normalizedAngle>90&&normalizedAngle<270?angle+180:angle;
         const laneLabel=(position:Point,label:string,color:string)=>{
-          const at=add(position,side.inward,-28),group=el('g',{transform:`translate(${at.x} ${at.y}) rotate(${readableAngle})`});
-          el('rect',{x:-30,y:-10,width:60,height:20,rx:8,fill:'#0b2133',stroke:color,'stroke-width':'1.5',opacity:.96},group);
-          const text=el('text',{x:0,y:4,'text-anchor':'middle',fill:'#fff','font-size':11,'font-weight':950,'letter-spacing':1},group);text.textContent=label;
+          const at=add(position,side.inward,-34),group=el('g',{transform:`translate(${at.x} ${at.y}) rotate(${readableAngle})`});
+          el('rect',{x:-70,y:-21,width:140,height:42,rx:12,fill:'#061526',stroke:'#ffffff', 'stroke-width':3,opacity:1},group);
+          el('rect',{x:-65,y:-16,width:130,height:32,rx:9,fill:'#0b2133',stroke:color,'stroke-width':3,opacity:1},group);
+          const text=el('text',{x:0,y:8,'text-anchor':'middle',fill:'#fff','font-size':25,'font-weight':1000,'letter-spacing':.25,stroke:'#061526','stroke-width':2.5},group);text.textContent=label;
         };
         laneLabel(side.red,'HOME','#fa5b61');laneLabel(side.green,'BASE','#38cc96');
         const basePieces=pieces.filter(piece=>piece.seat===seat&&piece.loc==='base');
-        basePieces.forEach(piece=>marble(side.base[4-piece.slot],seat,piece.id));
+        basePieces.forEach(piece=>marble(side.base[4-piece.slot],seat,piece.id,selectedPieces.has(piece.id)));
         const badge=add(side.green,side.inward,169);
         el('circle',{cx:badge.x,cy:badge.y,r:14,fill:'#102842',stroke:colorFor(seat),'stroke-width':2});
         const count=el('text',{x:badge.x,y:badge.y+5,'text-anchor':'middle',fill:'#fff','font-weight':900,'font-size':15});count.textContent=String(basePieces.length);
       });
-      for(const piece of pieces.filter(item=>item.loc==='track'))marble(positionOf(piece),piece.seat,piece.id);
-      for(const piece of pieces.filter(item=>item.loc==='run'||item.loc==='home'))marble(positionOf(piece),piece.seat,piece.id);
+      for(const piece of pieces.filter(item=>item.loc==='track'))marble(positionOf(piece),piece.seat,piece.id,selectedPieces.has(piece.id));
+      for(const piece of pieces.filter(item=>item.loc==='run'||item.loc==='home'))marble(positionOf(piece),piece.seat,piece.id,selectedPieces.has(piece.id));
       if(showIndices){
         const side=geo.sides[0];
         [0,2,8,18].forEach(position=>{const point=side.holes[position],at=add(point,side.inward,-28),text=el('text',{x:at.x,y:at.y+5,'text-anchor':'middle',class:'numbadge'});text.textContent=String(position);});
@@ -152,7 +156,7 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
       if(!old||old.loc===piece.loc&&old.progress===piece.progress&&old.run===piece.run)continue;
       const finalMarble=boardLayer.querySelector(`[data-piece-id="${piece.id}"]`);
       if(!finalMarble)continue;
-      const group=marble(positionOf(old),piece.seat,`moving-${piece.id}`) as SVGGElement;
+          const group=marble(positionOf(old),piece.seat,`moving-${piece.id}`,selectedPieces.has(piece.id)) as SVGGElement;
       finalMarble.setAttribute('opacity','0');
       boardLayer.append(group);
       const route=pathOf(old,piece);
@@ -177,7 +181,7 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
       animations.push({frame,group,staticMarble:finalMarble});
     }
     return ()=>{for(const animation of animations){window.cancelAnimationFrame(animation.frame);animation.group.remove();animation.staticMarble?.setAttribute('opacity','1');}};
-  },[sideCount,players,pieces,activeSeat,showIndices]);
+  },[sideCount,players,pieces,activeSeat,selectedPieceIds,showIndices]);
 
   return <svg ref={svgRef} id="board" viewBox="0 0 1040 970" aria-label="Accurate Angry Marbles board geometry" role="img"/>;
 }
