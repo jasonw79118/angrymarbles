@@ -47,8 +47,10 @@ async function profile(env:Env,account:Account){
 function roomStub(env:Env,code:string):DurableObjectStub{
   return env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(code));
 }
-async function roomRequest(env:Env,code:string,userId:string,path:string,method:string,data?:unknown):Promise<Response>{
-  const headers=new Headers({'x-am-user-id':userId});
+async function roomRequest(env:Env,code:string,userId:string|null,path:string,method:string,data?:unknown,upgrade?:string|null):Promise<Response>{
+  const headers=new Headers();
+  if(userId)headers.set('x-am-user-id',userId);
+  if(upgrade)headers.set('Upgrade',upgrade);
   if(data!==undefined)headers.set('content-type','application/json');
   return await roomStub(env,code).fetch(new Request(`https://room.internal${path}`,{method,headers,body:data===undefined?undefined:JSON.stringify(data)}));
 }
@@ -59,6 +61,7 @@ function newRoomCode():string{
 }
 async function route(request:Request,env:Env):Promise<Response>{
   const url=new URL(request.url),path=url.pathname,method=request.method;
+  const roomMatch=path.match(/^\/api\/angry-marbles\/room\/([A-HJ-NP-Z2-9]{6})(\/events(?:-ticket)?)?$/i);
   if(path==='/api/health')return json({status:'ok',service:'angry-marbles-api'});
   if(path==='/api/auth/register'&&method==='POST'){
     const data=await body(request),email=String(data.email||'').trim().toLowerCase(),name=String(data.name||'').trim(),password=String(data.password||'');
@@ -80,6 +83,9 @@ async function route(request:Request,env:Env):Promise<Response>{
     const account=await env.DB.prepare('SELECT * FROM accounts WHERE email_lower=?').bind(identity).first<Account>();
     if(!account||!await verifyPassword(password,account.password_hash))return error('Email or password is incorrect.',401);
     return json({token:await createSession(env,account),profile:await profile(env,account)});
+  }
+  if(roomMatch?.[2]==='/events'&&method==='GET'){
+    return roomRequest(env,roomMatch[1].toUpperCase(),null,`/events${url.search}`,'GET',undefined,request.headers.get('upgrade')||'websocket');
   }
   const account=await currentAccount(request,env);
   if(!account)return error('Sign in required.',401);
@@ -121,7 +127,6 @@ async function route(request:Request,env:Env):Promise<Response>{
     return error('Could not allocate a room code. Try again.',503);
   }
   const joinPath=path==='/api/angry-marbles/join'&&method==='POST';
-  const roomMatch=path.match(/^\/api\/angry-marbles\/room\/([A-HJ-NP-Z2-9]{6})(\/events(?:-ticket)?)?$/i);
   if(joinPath){
     const data=await body(request),code=String(data.code||'').toUpperCase();
     if(!/^[A-HJ-NP-Z2-9]{6}$/.test(code))return error('Enter a six-character room code.');
@@ -138,7 +143,7 @@ async function route(request:Request,env:Env):Promise<Response>{
     if(suffix&&suffix!=='/events')return error('Method not allowed.',405);
     return roomRequest(env,code,account.id,'/view',method);
   }
-  const actionMatch=path.match(/^\/api\/angry-marbles\/(countdown|fill|color|move)$/);
+  const actionMatch=path.match(/^\/api\/angry-marbles\/(countdown|fill|fill-now|color|move)$/);
   if(actionMatch&&method==='POST'){
     const data=await body(request),code=String(data.code||'').toUpperCase();
     if(!/^[A-HJ-NP-Z2-9]{6}$/.test(code))return error('Enter a six-character room code.');
@@ -154,7 +159,7 @@ export default {
     const permittedOrigin=origin&&allowed.includes(origin)?origin:null;
     if(origin&&!permittedOrigin)return error('Origin not allowed.',403);
     if(request.method==='OPTIONS')return cors(new Response(null,{status:204}),permittedOrigin);
-    try{return cors(await route(request,env),permittedOrigin);}
+    try{const response=await route(request,env);return response.status===101?response:cors(response,permittedOrigin);}
     catch(error){console.error(error);return cors(json({message:'Internal server error.'},500),permittedOrigin);}
   },
 };

@@ -1,5 +1,5 @@
 const encoder=new TextEncoder();
-const ITERATIONS=120_000;
+const ITERATIONS=100_000;
 
 function hex(bytes:Uint8Array):string{return Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');}
 function equal(a:string,b:string):boolean{

@@ -152,6 +152,13 @@ export class GameRoom {
       if(path==='/fill'&&method==='POST'){
         await this.fillRoom(room);await this.save(room);await this.syncDirectory(room);await this.notify();return this.json({ok:true});
       }
+      if(path==='/fill-now'&&method==='POST'){
+        if(room.hostId!==userId)return this.failure('Only the host can start computer play.',403);
+        if(room.status!=='waiting')return this.failure('This game has already started.',409);
+        room.startedCountdown=true;room.fillAt=Date.now();
+        await this.fillRoom(room);await this.state.storage.deleteAlarm();await this.save(room);await this.syncDirectory(room);await this.notify();
+        return this.json({ok:true});
+      }
       if(path==='/color'&&method==='POST'){
         const color=typeof data.color==='string'&&/^#[\da-fA-F]{6}$/.test(data.color)?data.color.toLowerCase():null;
         if(!color)return this.failure('Enter a six-digit hex color.');

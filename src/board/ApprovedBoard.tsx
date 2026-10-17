@@ -39,10 +39,14 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
       return group;
     };
     const positionOf=(piece:Piece):Point=>{
-      const side=geo.sides[piece.seat];
-      if(piece.loc==='track')return side.holes[boardGeometry.trackIndex(piece.seat,piece.progress,sideCount*1)%(sideCount*18)];
-      if(piece.loc==='run'||piece.loc==='home')return side.home[Math.min(piece.run,4)];
-      return side.base[4-piece.slot];
+      const side=geo.sides[piece.seat]||geo.sides[0];
+      let position:Point|undefined;
+      if(piece.loc==='track')position=side.holes[boardGeometry.trackIndex(piece.seat,piece.progress,sideCount)%(sideCount*18)];
+      else if(piece.loc==='run'||piece.loc==='home')position=side.home[Math.max(0,Math.min(piece.run,4))];
+      else position=side.base[4-piece.slot];
+      if(position)return position;
+      console.warn('Missing board position for marble',piece.id,piece.seat,piece.loc,piece.slot,piece.run,piece.progress);
+      return side.base[0];
     };
     const pathOf=(from:Piece,to:Piece):Point[]=>{
       const path=[positionOf(from)];

@@ -68,6 +68,7 @@ export const gameApi={
   color:(code:string,color:string)=>api<unknown>('/color',{code,color}),
   countdown:(code:string)=>api<unknown>('/countdown',{code}),
   fill:(code:string)=>api<unknown>('/fill',{code}),
+  fillNow:(code:string)=>api<unknown>('/fill-now',{code}),
   move:(code:string,moveId:string)=>api<unknown>('/move',{code,moveId}),
   discard:(code:string,discardIndex:number)=>api<unknown>('/move',{code,discardIndex}),
 };
