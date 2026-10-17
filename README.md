@@ -50,11 +50,11 @@ Run `npm test` and `npm run build` for the current checks.
 
 ## GitHub Pages deployment
 
-The `.github/workflows/pages.yml` workflow deploys the static frontend from `main`. Enable **GitHub Actions** in repository Pages settings. First create the Cloudflare D1 database, replace the placeholder `database_id` in `wrangler.jsonc`, apply remote migrations, and deploy the Worker with `npm run worker:deploy`. Then add the repository Actions variable `VITE_API_BASE_URL` with the Worker HTTPS URL ending in `/api` (for example, `https://angry-marbles-api.<your-workers-subdomain>.workers.dev/api`). The workflow builds the frontend against that API. The expected site is <https://jasonw79118.github.io/angrymarbles/>. GitHub Pages hosts only the static frontend.
+The `.github/workflows/pages.yml` workflow deploys the static frontend from `main` and builds it against the deployed Worker API. First create the Cloudflare D1 database, set its ID in `wrangler.jsonc`, apply remote migrations, and deploy the Worker with `npm run worker:deploy`. The workflow's `VITE_API_BASE_URL` is the public Worker HTTPS URL ending in `/api`. The expected site is <https://jasonw79118.github.io/angrymarbles/>. GitHub Pages hosts only the static frontend.
 
 ## Cloudflare backend setup
 
-The Worker uses D1 for accounts, sessions, stats, room discovery, and short-lived WebSocket tickets. Each room is a Durable Object, which serializes authoritative moves and stores the full private game state. Set the D1 database ID in `wrangler.jsonc`, then run `npm run db:migrate:local` for local development or `npx wrangler d1 migrations apply DB --remote` before the first deployment. `npm run worker:deploy` publishes the Worker. Configure `ALLOWED_ORIGINS` in `wrangler.jsonc` for the production Pages origin and local development origins. Cloudflare account provisioning, remote deployment, and live two-account play have not been performed from this workspace.
+The Worker uses D1 for accounts, sessions, stats, room discovery, and short-lived WebSocket tickets. Each room is a Durable Object, which serializes authoritative moves and stores the full private game state. The production D1 database is created and migrated, and the Worker is deployed at <https://angry-marbles-api.jasonw79118.workers.dev>. Local development uses `npm run db:migrate:local`, `npm run worker:dev`, and `npm run dev`. The public Worker health and unauthenticated auth routes have been verified; signup from two real player accounts and a complete multiplayer game still need browser verification.
 
 ## Security and operational limitations
 

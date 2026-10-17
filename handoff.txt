@@ -1,15 +1,16 @@
 ANGRY MARBLES — DEVELOPMENT HANDOFF
-Milestone: approved v0.4.2 visual restoration; Cloudflare backend migration in progress
+Milestone: Cloudflare backend deployed; Pages login hookup in progress
 Date: 2026-10-15
 
 DELIVERY
   Destination was verified empty; Git initialized on main with origin set to the supplied repository.
   Remote returned no refs at initialization; no remote history was changed and nothing was pushed.
-  Cloudflare Worker, D1, and Durable Object scaffolding has been added but is not deployed.
+  Cloudflare D1 database created and all three migrations applied.
+  Cloudflare Worker and Durable Object class deployed; health and unauthenticated auth route verified.
   GitHub repository target: AngryMarbles
   Frontend hosting target: GitHub Pages
   Backend host: Cloudflare Workers with D1 and Durable Objects.
-  No Cloudflare provisioning, remote deployment, or GitHub push performed.
+  GitHub push for backend migration completed; Pages rebuild is pending the production API URL fix.
 
 GAMES / USERS
   - Password-authenticated player accounts, unique room codes.
@@ -59,12 +60,11 @@ TESTS COMPLETED
 NOT YET COMPLETED / IMPORTANT
   Local Worker/D1 integration tests, including authentication, room actions, and WebSocket behavior.
   Browser-to-server tests using two real player accounts.
-  Create the D1 database, replace the placeholder database ID, apply remote migrations, and deploy the Worker.
-  Set the GitHub Pages Actions variable VITE_API_BASE_URL to the deployed Worker /api URL; deploy and verify Pages.
+  Push the Pages workflow's deployed Worker /api URL, then verify account signup on Pages.
   Security hardening: verification email, password reset, abuse controls, backups.
   Compare house-rule edge cases including Joker replacement collisions and split/home-run interactions.
   Bot turns are immediate after human move; not yet delayed/animated.
-  Verify Durable Object alarms and WebSocket invalidation behavior against a deployed Worker.
+  Verify Durable Object alarms, WebSocket invalidation, signup, and two-account play against the deployed Worker.
 
 GUARDRAILS
   Never commit pb_data, executable, credentials, or admin tokens.
