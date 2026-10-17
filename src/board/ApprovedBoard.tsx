@@ -41,7 +41,10 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,showI
     const positionOf=(piece:Piece):Point=>{
       const side=geo.sides[piece.seat]||geo.sides[0];
       let position:Point|undefined;
-      if(piece.loc==='track')position=side.holes[boardGeometry.trackIndex(piece.seat,piece.progress,sideCount)%(sideCount*18)];
+      if(piece.loc==='track'){
+        const index=boardGeometry.trackIndex(piece.seat,piece.progress,sideCount)%(sideCount*18);
+        position=geo.sides[Math.floor(index/18)]?.holes[index%18];
+      }
       else if(piece.loc==='run'||piece.loc==='home')position=side.home[Math.max(0,Math.min(piece.run,4))];
       else position=side.base[4-piece.slot];
       if(position)return position;
