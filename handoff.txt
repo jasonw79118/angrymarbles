@@ -46,3 +46,5 @@ Automated Worker integration uses in-memory isolated D1/DO state and has no prod
 Browser verification used a separate frontend 5180 and isolated Worker 8788.
 Artwork sheets in the new bundle match the already-integrated avatar/marble sheets byte-for-byte.
 Reused existing optimized sprites/portraits and example timing/layering; never used the concept board as playable art. Card art unchanged.
+
+FOLLOW-UP: An occupied teammate red marker now produces a server-generated warning before the selected move is played and a visible warning after the confirmed return to inventory.

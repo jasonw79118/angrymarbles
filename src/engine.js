@@ -100,6 +100,8 @@ function sendToRedOrBase(room, victim, log) {
   }
 }
 
+const collisionWarnings = log => log.filter(line=>line.includes('red track marker was occupied'))
+  .map(line=>line.replace('was occupied; their marble returned','is occupied; the teammate marble returns'));
 function owner(room, seat) { return room.players.find(p=>p.seat===seat)?.name || 'Player'; }
 function recordStat(room, seat, stat) {
   const actor = room.currentActorSeat ?? seat;
@@ -214,9 +216,10 @@ export function legalMoves(room, seat) {
   const pieces=room.pieces.filter(p=>p.seat===mover);
   const options=[];
   function add(cardIndex,ops,tag='') {
-    if(executeOps(simulation(room),mover,ops)===null) return;
+    const outcome=executeOps(simulation(room),mover,ops);
+    if(outcome===null) return;
     const id=`${cardIndex}|${ops.map(op=>JSON.stringify(op)).join('|')}`;
-    options.push({id,cardIndex,ops,label:(tag?tag+': ':'')+ops.map(stepLabel).join(' + ')});
+    options.push({id,cardIndex,ops,warnings:collisionWarnings(outcome),label:(tag?tag+': ':'')+ops.map(stepLabel).join(' + ')});
   }
   for(let ci=0;ci<hand.length;ci++) {
     const rank=hand[ci].rank;
@@ -284,17 +287,17 @@ export function play(room, seat, optionId, discardIndex=null) {
   if(!log) throw Error('Move could not be completed.');
   const card=clone(room.hands[seat][option.cardIndex]);
   endTurn(room,seat,option.cardIndex,log,false);
-  recordAction(room,seat,card,before,option.ops,false,option.label);
+  recordAction(room,seat,card,before,option.ops,false,option.label,log);
   return room;
 }
-function recordAction(room,seat,card,before,ops,discarded,label){
+function recordAction(room,seat,card,before,ops,discarded,label,log=[]){
   const seq=(room.actionSeq||0)+1;room.actionSeq=seq;
   const changes=room.pieces.flatMap(to=>{
     const from=before.find(p=>p.id===to.id);
     return from&&JSON.stringify(from)!==JSON.stringify(to)?[{from,to:clone(to)}]:[];
   });
   const event={id:`${room.code}:${seq}`,seq,gameId:room.code,actorSeat:seat,card,discarded,label,
-    ops:clone(ops),changes,at:Date.now(),turnNumber:room.turnNumber,
+    ops:clone(ops),warnings:collisionWarnings(log),changes,at:Date.now(),turnNumber:room.turnNumber,
     turnSeat:room.status==='playing'?room.players[room.turnIndex].seat:null,
     baseCounts:Object.fromEntries(room.players.map(p=>[p.seat,room.pieces.filter(m=>m.seat===p.seat&&m.loc==='base').length]))};
   room.actions=[...(room.actions||[]),event].slice(-256);
@@ -338,7 +341,7 @@ export function roomView(room, userId) {
     pieces:room.pieces||[], mySeat:me?.seat??null,
     myHand:me && room.hands?room.hands[me.seat]:[],
     turnSeat:room.status==='playing'?room.players[room.turnIndex].seat:null,
-    myMoves:me?legalMoves(room,me.seat).map(({id,label,cardIndex,ops})=>({id,label,cardIndex,pieceIds:[...new Set(ops.flatMap(op=>[op.piece,op.target].filter(Boolean)))]})):[],
+    myMoves:me?legalMoves(room,me.seat).map(({id,label,cardIndex,ops,warnings})=>({id,label,cardIndex,warnings,pieceIds:[...new Set(ops.flatMap(op=>[op.piece,op.target].filter(Boolean)))]})):[],
     discards:room.discards?.length||0, deckCount:room.deck?.length||0,
     topDiscard:room.discards?.at(-1)||null, log:room.log||[],
     winners:room.winners||null,colors:COLORS,track:trackSize(room),trackPerSeat:TRACK_PER_SEAT,boardSides:room.boardSides||boardSidesFor(room),run:RUN,marbles:MARBLES,

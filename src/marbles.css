@@ -422,3 +422,6 @@ button:focus-visible { outline: 3px solid #ffe493; outline-offset: 3px; }
 .approved-page .current-play-banner { position: absolute; top: 14px; right: 14px; z-index: 2; display: flex; align-items: center; gap: 9px; padding: 7px 10px; max-width: 210px; border: 1px solid #d5b46a; border-radius: 10px; background: #061b2def; color: #fff1c2; font-size: 11px; pointer-events: none; }
 .approved-page .current-play-banner .playing-card { width: 32px; height: 45px; margin: 0; }
 @media(max-width:700px){.approved-page .current-play-banner { top: 8px; right: 7px; max-width: 150px; padding: 5px; gap: 5px; font-size: 9px; }}
+
+.approved-page .collision-warning { padding: 12px 15px; margin-bottom: 12px; border: 2px solid #e8b55b; border-radius: 10px; background: #49331ced; color: #fff0c2; }
+.approved-page .collision-warning p { margin-top: 5px; color: #fff0c2; font-size: 13px; }

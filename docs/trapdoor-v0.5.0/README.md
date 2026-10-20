@@ -44,3 +44,5 @@ The new bundle's glossy marble and fantasy avatar sheets have exactly the same S
 Explicitly unchanged: pb_hooks/boardGeometry.cjs, src/main.tsx (theme remains last), wrangler.jsonc, worker auth/router and D1 migrations, public/assets/cards/ and public/assets/art/.
 
 Deployment requires the Worker first, then the main-branch Pages workflow. This branch is not deployed.
+
+Follow-up: selecting a move with an occupied teammate red marker displays a warning before play. The confirmed return to inventory also displays a prominent amber alert. Warning text comes from authoritative move validation and the confirmed action. Regression assertions cover both warnings for 4/6/8 boards.

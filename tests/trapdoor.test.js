@@ -18,7 +18,7 @@ for(const n of [4,6,8]){
   test(`${n} sides: select a specific inventory marble and release at unchanged green`,()=>{
     const r=game(n),event=release(r,'0:4');const marble=r.pieces.find(p=>p.id==='0:4');
     assert.equal(marble.loc,'track');assert.equal(trackPosition(marble,n),8);
-    assert.equal(event.baseCounts[0],4);assert.equal(event.ops[0].piece,'0:4');assert.equal(r.pieces.find(p=>p.id==='0:0').loc,'base');
+    assert.deepEqual(event.warnings,[]);assert.equal(event.baseCounts[0],4);assert.equal(event.ops[0].piece,'0:4');assert.equal(r.pieces.find(p=>p.id==='0:0').loc,'base');
   });
   test(`${n} sides: own green blocks release without consuming card or event`,()=>{
     const r=game(n);at(r,'0:0',8);const before=JSON.stringify(r);
@@ -39,7 +39,10 @@ for(const n of [4,6,8]){
   });
   test(`${n} sides: occupied teammate red returns teammate to inventory, preserving occupant`,()=>{
     const r=game(n),mate=n/2;const victim=at(r,`${mate}:0`,8),occupant=at(r,'1:0',mate*18+2);const before={...occupant};
-    release(r);assert.equal(victim.loc,'base');assert.deepEqual(occupant,before);
+    const option=legalMoves(r,0).find(m=>m.ops[0].kind==='release');
+    assert.ok(option.warnings.some(text=>text.includes('teammate marble returns to avatar inventory')));
+    const event=release(r);assert.equal(victim.loc,'base');assert.deepEqual(occupant,before);
+    assert.deepEqual(event.warnings,option.warnings);
   });
   test(`${n} sides: eight goes backward from green but cannot release inventory`,()=>{
     const r=game(n);r.hands[0]=[{id:'eight',rank:'8',suit:'♠'}];const p=at(r,'0:3',8);
@@ -51,7 +54,7 @@ test('confirmed public events expose played cards and changed pieces, never priv
   const r=game();release(r);const state=roomView(r,'test-1');
   assert.equal(state.actions[0].card.rank,'K');assert.equal(state.actions[0].id,'TRAP:1');
   assert.ok(!('hands' in state));assert.ok(!('deck' in state));
-  assert.deepEqual(Object.keys(state.actions[0]).sort(),['id','seq','gameId','actorSeat','card','discarded','label','ops','changes','at','turnNumber','turnSeat','baseCounts'].sort());
+  assert.deepEqual(Object.keys(state.actions[0]).sort(),['id','seq','gameId','actorSeat','card','discarded','label','ops','warnings','changes','at','turnNumber','turnSeat','baseCounts'].sort());
   assert.equal(state.myHand.length,6);assert.notDeepEqual(state.myHand,r.hands[0]);
 });
 test('server prevents passing a card with a legal move and accepts a genuine no-move pass',()=>{
