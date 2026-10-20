@@ -107,9 +107,22 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       svg.replaceChildren();
       const defs=el('defs');
       defs.innerHTML=`<linearGradient id="wood" x1="0%" y1="0%" x2="90%" y2="100%"><stop stop-color="#ffc57b"/><stop offset=".22" stop-color="#d9944b"/><stop offset=".56" stop-color="#c17c36"/><stop offset=".84" stop-color="#e6a965"/><stop offset="1" stop-color="#a96529"/></linearGradient><radialGradient id="felt" cx="48%" cy="45%" r="75%"><stop stop-color="#23647f"/><stop offset=".8" stop-color="#0b304c"/><stop offset="1" stop-color="#082237"/></radialGradient><filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="10"/></filter>`;
+      // Image patterns skin the existing SVG shapes; geometry and hit targets stay intact.
+      const artBase=`${import.meta.env.BASE_URL}assets/art/`;
+      for(const texture of ['wood','felt']){
+        const width=texture==='wood'?660:512,height=texture==='wood'?210:512;
+        const pattern=el('pattern',{id:`art-${texture}`,width,height,patternUnits:'userSpaceOnUse'},defs);
+        el('image',{href:`${artBase}${texture}.webp`,width,height,preserveAspectRatio:'none'},pattern);
+      }
       COLORS.forEach((fallback,index)=>{
         const color=players.find(player=>player.seat%COLORS.length===index)?.color||fallback;
-        defs.insertAdjacentHTML('beforeend',`<radialGradient id="ball${index}" cx="27%" cy="21%" r="86%"><stop stop-color="#fff7"/><stop offset=".18" stop-color="${color}"/><stop offset=".68" stop-color="${color}"/><stop offset="1" stop-color="#16243d"/></radialGradient>`);
+        const channels=[1,3,5].map(offset=>parseInt(color.slice(offset,offset+2),16)/255);
+        const filter=el('filter',{id:`marble-tint-${index}`,'color-interpolation-filters':'sRGB',x:0,y:0,width:1,height:1},defs);
+        const transfer=el('feComponentTransfer',{},filter);
+        channels.forEach((channel,i)=>el(`feFunc${['R','G','B'][i]}`,{type:'table',tableValues:`${channel*.12} ${channel*.65} ${channel} 1`},transfer));
+        const pattern=el('pattern',{id:`ball${index}`,width:1,height:1,patternContentUnits:'objectBoundingBox'},defs);
+        el('rect',{width:1,height:1,fill:color},pattern);
+        el('image',{href:`${artBase}marble-neutral.png`,width:1,height:1,preserveAspectRatio:'none',filter:`url(#marble-tint-${index})`},pattern);
       });
       const polygon=(vertices:Point[],attrs:Record<string,string|number>)=>el('polygon',{points:vertices.map(point=>`${point.x},${point.y}`).join(' '),...attrs});
       const outer=geo.corners.map(point=>({x:geo.center.x+(point.x-geo.center.x)*(geo.radius+44)/geo.radius,y:geo.center.y+(point.y-geo.center.y)*(geo.radius+44)/geo.radius}));
@@ -117,9 +130,11 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       polygon(outer.map(point=>({x:point.x+4,y:point.y+7})),{fill:'#000',opacity:.37,filter:'url(#shadow)'});
       polygon(outer,{fill:'url(#wood)',stroke:'#59351e','stroke-width':6,'stroke-linejoin':'round'});
       polygon(inner,{fill:'url(#felt)',stroke:'#94571e','stroke-width':7,'stroke-linejoin':'round'});
+      polygon(outer,{fill:'url(#art-wood)',opacity:.28,'pointer-events':'none'});
+      polygon(inner,{fill:'url(#art-felt)',opacity:.62,'pointer-events':'none'});
       const roundedWood=(from:Point,to:Point,width:number,rim='#713614')=>{
         el('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,stroke:rim,'stroke-width':width+9,'stroke-linecap':'round',opacity:.94});
-        el('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,stroke:'url(#wood)','stroke-width':width,'stroke-linecap':'round'});
+        el('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,stroke:'url(#art-wood)','stroke-width':width,'stroke-linecap':'round'});
         el('line',{x1:from.x-5,y1:from.y-5,x2:to.x-5,y2:to.y-5,stroke:'#ffd78d','stroke-width':'1.5',opacity:.24});
       };
       const carvedHole=(position:Point,fill='#422012',stroke='#d59b53',radius=8,kind='track',id='')=>{

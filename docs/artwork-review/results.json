@@ -1,0 +1,24 @@
+{
+  "waitingCode": "3CY6PF",
+  "errors": [],
+  "sockets": [
+    {
+      "path": "/angrymarbles/",
+      "received": 1
+    },
+    {
+      "path": "/api/angry-marbles/room/3CY6PF/events",
+      "received": 2
+    },
+    {
+      "path": "/api/angry-marbles/room/8FNHLY/events",
+      "received": 1
+    }
+  ],
+  "live": {
+    "status": "playing",
+    "track": 72,
+    "mySeat": 0,
+    "turnSeat": 0
+  }
+}

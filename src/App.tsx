@@ -55,7 +55,9 @@ function Board({room,selectedPieceIds=[],onPieceSelect}:{room:Pick<RoomState,'pl
 function CardChip({card,selected,onClick}:{card:Card,selected:boolean,onClick:()=>void}){
   const red=card.suit==='♥'||card.suit==='♦';
   const portrait=card.rank==='JOKER'?'joker':({J:'jack',Q:'queen',K:'king'} as Record<string,string>)[card.rank]||null;
-  const imageUrl=portrait?`${import.meta.env.BASE_URL}assets/cards/card-${portrait}.svg`:null;
+  const suitName=({'♥':'hearts','♦':'diamonds','♣':'clubs','♠':'spades'} as Record<string,string>)[card.suit];
+  const jokerIndex=(Number(card.id.split(':')[0])||0)*2+(card.suit==='☆'?1:0);
+  const imageUrl=suitName||card.rank==='JOKER' ? `${import.meta.env.BASE_URL}assets/art/${card.rank==='JOKER'?`joker-${jokerIndex%4}`:suitName+'-'+card.rank}.webp` : null;
   const label=card.rank==='JOKER'?'JOKER':`${card.rank} of ${card.suit}`;
   return <button type="button" aria-label={label} aria-pressed={selected} className={`playing-card ${selected?'selected':''} ${red?'red':''} ${portrait?'royal':''}`} onClick={onClick}>
     {imageUrl?<img src={imageUrl} alt={card.rank==='JOKER'?'Marble jester':`Marble ${card.rank}`} />:<><span className="corner-index">{card.rank}<br/>{card.suit}</span>{card.suit}</>}
@@ -63,12 +65,12 @@ function CardChip({card,selected,onClick}:{card:Card,selected:boolean,onClick:()
 }
 function PlayerList({room}:{room:Pick<RoomState,'players'|'turnSeat'|'dealerSeat'|'mode'|'capacity'>}){
   const sideCount=boardGeometry.boardSides(room.mode,room.capacity);
-  const portraits=['jack','queen','king','joker']; // Use existing illustrated royal card art as player portraits
+  const portraits=['fox','panda','dragon','cat','dog','owl'];
   return <div className="roster">{room.players.map(p=>{
     const partner=room.mode==='doubles'?boardGeometry.oppositeSeat(p.seat,sideCount):p.seat;
     const team=room.mode==='doubles'?Math.min(p.seat,partner)%(sideCount/2)+1:null;
     return <div key={p.seat} className={`player ${room.turnSeat===p.seat?'active':''}`}>
-      <img className="player-avatar" src={`${import.meta.env.BASE_URL}assets/cards/card-${portraits[p.seat%portraits.length]}.svg`} alt="Player portrait"/>
+      <img className="player-avatar" src={`${import.meta.env.BASE_URL}assets/art/avatar-${portraits[p.seat%portraits.length]}.webp`} alt={`${portraits[p.seat%portraits.length]} player portrait`}/>
       <div><div className="pname">{p.name} {p.isBot&&<span>(Bot)</span>} · P{p.seat+1}</div><div className="pmeta">{team?`Team ${team}`:'Solo'} · {p.baseCount} in base / {5-p.baseCount} out · {p.marbleCount}/5 home</div><div className="mini-marbles">{Array.from({length:5},(_,index)=><b key={index} style={{background:index<p.baseCount?p.color:'#354f6b'}}/>)}</div></div>
     </div>;
   })}</div>;
