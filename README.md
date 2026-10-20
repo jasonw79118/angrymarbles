@@ -89,4 +89,4 @@ The Worker uses D1 for accounts, sessions, stats, room discovery, and short-live
 
 Validation: `npm test` (52 rule/geometry tests), `npm run test:integration` (real Worker routes, privacy, collisions, bot alarms and stats), `npm run build`, and `npx wrangler deploy --dry-run`. Exact coordinate regression: tests/fixtures/geometry-v0.4.2.json. Browser evidence and the animation recording: [v0.5.0 review](docs/trapdoor-v0.5.0/README.md).
 
-Deployment: this branch requires deploying the Worker and then pushing/merging the frontend release to main. No D1 schema migration or wrangler.jsonc changes are needed. Old rooms acquire action history on their next confirmed action; existing positions are not migrated. The test-only fixture entry point is never imported by the production Worker.
+Deployment order: deploy the Worker before pushing/merging the frontend release to main. No D1 schema migration or wrangler.jsonc changes are needed. Old rooms acquire action history on their next confirmed action; existing positions are not migrated. The test-only fixture entry point is never imported by the production Worker.

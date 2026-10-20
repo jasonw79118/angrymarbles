@@ -35,7 +35,7 @@ No real credentials or production data were used. Supplied local test room 8FNHL
 BACKEND / DEPLOYMENT
 Keep src/cloudflare.ts, worker/ and wrangler.jsonc. Do not restore PocketBase.
 No D1 schema migration required. New DO fields default on old rooms; existing piece locations are preserved.
-Deploy Worker before frontend release so the action feed/pacing is available. This implementation branch has not been pushed or deployed.
+Deploy Worker before frontend release so the action feed/pacing is available. Worker v0.5.0 deployed; frontend publication uses the main-branch Pages workflow.
 Production frontend: https://jasonw79118.github.io/angrymarbles/
 Production Worker: https://angry-marbles-api.jasonw79118.workers.dev/api
 
