@@ -1,77 +1,48 @@
-ANGRY MARBLES — DEVELOPMENT HANDOFF
-Milestone: Cloudflare backend deployed; Pages login hookup in progress
-Date: 2026-10-15
+ANGRY MARBLES — v0.5.0 TRAPDOOR HANDOFF
+Date: 2026-10-20
+Branch: feat/trapdoor-v0.5.0
 
-DELIVERY
-  Destination was verified empty; Git initialized on main with origin set to the supplied repository.
-  Remote returned no refs at initialization; no remote history was changed and nothing was pushed.
-  Cloudflare D1 database created and all three migrations applied.
-  Cloudflare Worker and Durable Object class deployed; health and unauthenticated auth route verified.
-  GitHub repository target: AngryMarbles
-  Frontend hosting target: GitHub Pages
-  Backend host: Cloudflare Workers with D1 and Durable Objects.
-  GitHub push for backend migration completed; Pages rebuild is pending the production API URL fix.
+IMPLEMENTED
+- Fixed card selection clearing the user's intended marble: card -> marble -> unique legal move auto-selects.
+- Added explicit numbered marble controls and an explanation for backward 8 from green START versus inventory release.
+- Five logical base marbles are represented in avatar inventory with a distinct pocket below the avatar.
+- Removed visible on-board base wood, holes, pieces and badges only. Five HOME holes remain per player.
+- Confirmed action animation: collision/ejection -> avatar-pocket drop -> existing green trap opens -> marble rises -> closes.
+- Teammate bumps land on that teammate's red OUTER TRACK marker, not home; opponents can bump them there.
+- Occupied teammate red: user explicitly chose return to avatar inventory; existing occupant remains.
+- Durable Objects schedule one bot at a time every 4.5 seconds and publish each played card/action.
+- Board banner, played-card strip, and public ledger keep played cards visible; private hands/deck stay private.
+- Deduplicated action queue, reconnect recovery, reduced motion, fast animation preference, silent audio, and visual-failure fallback.
+- Bottom-left stamp, frontend package and engine version updated to 0.5.0.
 
-GAMES / USERS
-  - Password-authenticated player accounts, unique room codes.
-  - Singles 1-4 seats; teams 4/6/8 directly opposite; select same/opponent team.
-  - Host-set countdown; empty seats automatically filled with bots, with cron fallback.
-  - Choose from 48 marble colors plus custom hexadecimal; exact collisions rejected.
-  - Entire deck, discard, private hands and game rules are server-controlled.
-  - Dealer marker rotates whenever discarded cards are recycled.
-  - Stats: games, wins, losses, bumps, assists; no client access to write stats.
+LOCKED GEOMETRY
+pb_hooks/boardGeometry.cjs is unchanged.
+Exact baseline saved before implementation: tests/fixtures/geometry-v0.4.2.json.
+4/6/8 boards: 72/108/144 track holes; 20/30/40 visible home holes.
+No visible base holes; legacy base coordinates and logical base states retained.
+Existing 120-second waiting-countdown choice remains unchanged. This codebase has no per-move human 120-second timer.
 
-GEOMETRY / LOCAL DEMO
-  Imported geometry and royal artwork from angry-marbles-geometry-locked-arcade-v0.4.2.zip.
-  pb_hooks/boardGeometry.cjs is the shared source for renderer and game-engine indices.
-  Square singles; 4/6/8-player team polygons; 18 unique track holes per side.
-  Red marker 2, green exit 8, five home holes, five visible base-rack holes per side.
-  Browser-local demo allows mode/size selection, legal card moves, and discards without a backend.
-  Local activity is simulated in one browser; online multiplayer is not yet verified.
-  Original Jack, Queen, King, and Joker SVGs are under public/assets/cards/.
-  React SVG rendering and scoped arcade styles are ported from the approved index.html source.
-  Active-seat rotation brings the green base/start rack toward that player; lane words stay readable.
-  Jack sticks out its tongue, Queen winks, King has a curled mustache, Joker has star eyes/tongue.
-  Mobile/tablet entry is detected and the approved responsive layout is preserved.
-  GitHub Pages base is lowercase /angrymarbles/ and backend-free builds are supported.
-  The requested design-reference/AGENT_FIX_PROMPT.md was absent; the direct user requirements and original ZIP were followed.
+VALIDATION
+npm test: 52 passing rule/geometry tests.
+npm run test:integration: real production Worker routes compiled into an isolated local Miniflare test entry point.
+npm run build: TypeScript + Vite build.
+npx wrangler deploy --dry-run: Worker bundles with existing D1/DO bindings.
+Two browser sessions: matching confirmed results, release animations, backward eight, occupied-green collisions, reduced motion,
+re-entry without duplicate animation, fast-mode action queue, and desktop/phone exact DOM hole coordinates.
+Screenshots and animated actual-browser recording: docs/trapdoor-v0.5.0/.
+No real credentials or production data were used. Supplied local test room 8FNHLY was not changed.
 
-BACKEND
-  worker/index.ts                       account/session API and authenticated routing
-  worker/GameRoom.ts                    authoritative room state, game actions, and WebSockets
-  worker/auth.ts                        password and session-token hashing
-  worker/migrations/                    D1 schema migrations
-  wrangler.jsonc                        Worker, D1, and Durable Object bindings
+BACKEND / DEPLOYMENT
+Keep src/cloudflare.ts, worker/ and wrangler.jsonc. Do not restore PocketBase.
+No D1 schema migration required. New DO fields default on old rooms; existing piece locations are preserved.
+Deploy Worker before frontend release so the action feed/pacing is available. This implementation branch has not been pushed or deployed.
+Production frontend: https://jasonw79118.github.io/angrymarbles/
+Production Worker: https://angry-marbles-api.jasonw79118.workers.dev/api
 
-FRONTEND
-  src/App.tsx                             account/room/dashboard screens
-  src/cloudflare.ts                       Worker API client and room WebSocket subscription
-  src/engine.js                           engine for board drawing and tests
-  src/main.tsx                            React entrypoint
-  .github/workflows/pages.yml            GitHub Pages workflow
-  .github/workflows/pages.yml             static Pages deployment with Worker API configuration
-
-TESTS COMPLETED
-  npm test: 27 tests passed (23 engine and 4 geometry).
-  npm run build: passed after the approved renderer/styles, per-seat orientation, and card-expression updates.
-  Original verify_geometry.py passed with UTF-8 mode enabled.
-  npm install: completed with no reported npm audit vulnerabilities.
-
-NOT YET COMPLETED / IMPORTANT
-  Local Worker/D1 integration tests, including authentication, room actions, and WebSocket behavior.
-  Browser-to-server tests using two real player accounts.
-  Push the Pages workflow's deployed Worker /api URL, then verify account signup on Pages.
-  Security hardening: verification email, password reset, abuse controls, backups.
-  Compare house-rule edge cases including Joker replacement collisions and split/home-run interactions.
-  Bot turns are immediate after human move; not yet delayed/animated.
-  Verify Durable Object alarms, WebSocket invalidation, signup, and two-account play against the deployed Worker.
-
-GUARDRAILS
-  Never commit pb_data, executable, credentials, or admin tokens.
-  GitHub Pages is static-only; VITE_API_BASE_URL must point to the deployed Worker HTTPS /api endpoint.
-  Do not expose Durable Object room internals: they contain the full deck and every private hand.
-  Do not use frontend game logic to validate online moves; GameRoom calls the rules engine server-side.
-
-LOCAL DEMO
-  npm ci
-  npm run dev
+LOCAL TESTS
+npm run worker:dev (8787); npm run dev -- --host 127.0.0.1 --port 5179 --strictPort.
+If duplicate Wrangler sessions hang, restart one Worker with a separate WRANGLER_REGISTRY_PATH.
+Automated Worker integration uses in-memory isolated D1/DO state and has no production test routes.
+Browser verification used a separate frontend 5180 and isolated Worker 8788.
+Artwork sheets in the new bundle match the already-integrated avatar/marble sheets byte-for-byte.
+Reused existing optimized sprites/portraits and example timing/layering; never used the concept board as playable art. Card art unchanged.

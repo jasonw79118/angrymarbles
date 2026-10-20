@@ -77,28 +77,28 @@ test('blocked home entrance remains a legal outer-track route',()=>{
 test('singles supports player counts one through four',()=>{
  for(const n of [1,2,3,4]) assert.equal(possibleSeats('singles',n).length,n);
 });
-test('teammate collision sends teammate to the beginning of their home run',()=>{
+test('teammate collision sends teammate to their vulnerable red track marker',()=>{
  const r=startGame(room());r.hands[0]=[{rank:'A',suit:'♠',id:'test'}];
  const moving=r.pieces.find(p=>p.id==='0:0');Object.assign(moving,{loc:'track',progress:0});
  const target=r.pieces.find(p=>p.id==='2:0');Object.assign(target,{loc:'track',progress:37});
  const option=legalMoves(r,0).find(m=>m.ops.length===1 && m.ops[0].piece==='0:0' && m.ops[0].steps===1);
  assert.ok(option);play(r,0,option.id);
- assert.equal(target.loc,'run');assert.equal(target.run,0);
+ assert.equal(target.loc,'track');assert.equal(target.progress,66);assert.equal(target.run,-1);
  assert.ok(r.statEvents.some(e=>e.stat==='assists'&&e.seat===0));
 });
-test('blocked teammate home entrance returns the bumped marble to base',()=>{
+test('occupied teammate red track marker returns the bumped marble to avatar inventory',()=>{
  const r=startGame(room());r.hands[0]=[{rank:'A',suit:'♠',id:'test'}];
  Object.assign(r.pieces.find(p=>p.id==='0:0'),{loc:'track',progress:0});
  const target=r.pieces.find(p=>p.id==='2:0');Object.assign(target,{loc:'track',progress:37});
- Object.assign(r.pieces.find(p=>p.id==='2:1'),{loc:'run',run:0});
+ Object.assign(r.pieces.find(p=>p.id==='2:1'),{loc:'track',progress:66});
  const option=legalMoves(r,0).find(m=>m.ops[0].piece==='0:0' && m.ops[0].steps===1);
  assert.ok(option);play(r,0,option.id);assert.equal(target.loc,'base');
 });
-test('landing on teammate exit auto-bumps mover to start of own home',()=>{
+test('landing on teammate exit moves mover to their own red track marker',()=>{
  const r=startGame(room());r.hands[0]=[{rank:'A',suit:'♠',id:'test'}];
  const p=r.pieces.find(p=>p.id==='0:0');Object.assign(p,{loc:'track',progress:35});
  const option=legalMoves(r,0).find(m=>m.ops[0].piece==='0:0'&&m.ops[0].steps===1);
- assert.ok(option);play(r,0,option.id);assert.equal(p.loc,'run');assert.equal(p.run,0);
+ assert.ok(option);play(r,0,option.id);assert.equal(p.loc,'track');assert.equal(p.progress,66);assert.equal(p.run,-1);
  assert.ok(r.statEvents.some(e=>e.stat==='assists'&&e.seat===2));
 });
 test('marble cannot finish on own marble',()=>{
@@ -131,7 +131,7 @@ test('marble color presets are unique',()=>{
  assert.deepEqual(COLORS.slice(0,6),['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b']);
 });
 test('reshuffling preserves held cards and passes the dealer marker',()=>{
- const r=startGame(room());r.hands[0]=[{rank:'A',suit:'♠',id:'test'}];
+ const r=startGame(room());r.hands[0]=[{rank:'2',suit:'♠',id:'test'}];
  r.deck=[];r.discards=[{rank:'3',suit:'♥',id:'d1'},{rank:'9',suit:'♥',id:'d2'},{rank:'8',suit:'♥',id:'d3'}];
  const first=r.players[0].seat; assert.equal(r.dealerIndex,0);
  play(r,first,null,0);

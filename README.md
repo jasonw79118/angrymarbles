@@ -1,10 +1,10 @@
-# Angry Marbles
+# Angry Marbles v0.5.0
 
-React and TypeScript game prototype with locked v0.4.2 board geometry, a browser-local demo, and an optional Cloudflare Workers backend. The Worker handles accounts and authenticated game actions, D1 stores account/session and room-discovery data, and Durable Objects own authoritative game state and realtime room updates. Online multiplayer still needs live Cloudflare deployment and two-account verification.
+React and TypeScript game prototype with locked v0.4.2 board geometry, a browser-local demo, and an optional Cloudflare Workers backend. The Worker handles accounts and authenticated game actions, D1 stores account/session and room-discovery data, and Durable Objects own authoritative game state and realtime room updates. This upgrade was verified locally with two authenticated browser sessions against the real Worker routes and isolated D1/Durable Objects.
 
 ## Features retained
 
-- Approved geometry from v0.4.2: square singles board, and four-, six-, or eight-player team polygons; 18 track holes per side, red marker 2, green marker 8, five home holes, and five visible base holes.
+- Approved geometry from v0.4.2: square singles board, and four-, six-, or eight-player team polygons; 18 track holes per side, red marker 2, green marker 8, five visible home holes, and five base marbles in each avatar inventory. Legacy base coordinates remain unchanged but are not drawn.
 - One authoritative `pb_hooks/boardGeometry.cjs` module supplies coordinates and track indices to the SVG renderer and both game engines.
 - The React board renderer and scoped arcade stylesheet are ported from the original approved v0.4.2 `index.html`; existing auth, lobby, and server-validated move flows remain in place.
 - The active player's base start is rotated to face them; SVG seat labels follow the rotation but stay readable. Mobile phones/tablets are detected at runtime and use the source's responsive board layout.
@@ -61,8 +61,8 @@ The Worker uses D1 for accounts, sessions, stats, room discovery, and short-live
 - **Prototype, not public-launch ready.** Configure email verification and password recovery before opening sign-ups widely. Add abuse controls, a privacy notice, and backups. Registration currently creates accounts without email verification.
 - The browser only receives a bearer session token and per-player room views. Password hashes, session hashes, game decks, and other players' hands stay server-side. The frontend API URL is public configuration; never put Cloudflare API tokens or other secrets in `VITE_*` variables or the browser.
 - The renderer and rules engines now use the approved polygon geometry module. The board geometry suite verifies 72, 108, and 144 unique track holes and the lane/marker counts.
-- **Bot moves execute immediately server-side** after the current human turn; visible timed bot animations and advanced strategic AI are future upgrades.
-- Realtime changes are pushed over Durable Object WebSockets; clients refresh room state after an invalidation and retry by refreshing the page if the socket closes.
+- Bot moves are persisted and scheduled one at a time at 4.5-second intervals by Durable Object alarms. Public played cards remain visible on the board and in the card ledger. Advanced strategic AI remains future work.
+- Realtime changes use single-use ticketed Durable Object WebSockets with automatic reconnection. Confirmed action sequence IDs prevent duplicate effects; joining or rejoining restores the final state without replaying old animations.
 - Some stats semantics are house-rule assumptions; agree on the definition of a "player assist" before a formal leaderboard.
 - No existing Convex user accounts or games are migrated automatically. If Convex held any real data, an explicit migration would be necessary.
 
@@ -78,8 +78,15 @@ The Worker uses D1 for accounts, sessions, stats, room discovery, and short-live
 - `.github/workflows/pages.yml`: GitHub Pages build/deploy workflow.
 - `handoff.txt`: upgrade notes, remaining validation.
 
-### Current validation
+### v0.5.0 trapdoor upgrade
 
-`npm test` and `npm run build` validate the local frontend and game rules. The reference package's `verify_geometry.py` passes in UTF-8 mode. The React board was checked against the approved six-player screenshot and verified at the exact lowercase `/angrymarbles/` route on desktop and mobile. Cloudflare deployment, D1 remote migrations, and two-account online play have not yet been completed; do not treat multiplayer as verified.
+- Pick a card, then pick a specific marble on the board, in its avatar inventory, or using the numbered marble buttons. Tapping a marble with one legal move selects that move automatically. Selecting a card no longer preselects a marble and then accidentally clears it when tapped.
+- An 8 moves an already-released track marble backward, including from green START; it never releases inventory. Ace/J/Q/K release inventory to the unchanged green start.
+- Confirmed release: existing occupant is ejected or redirected, an inventory token drops into the separate avatar pocket, then a lid opens on the existing green hole and the marble rises from below. Opponents return to inventory. Teammates go to their own red OUTER-TRACK marker and remain vulnerable. Per the user's clarification, an occupied teammate red marker returns that teammate to inventory without moving the occupant.
+- Base racks, their holes, base-piece drawings, and on-board base counts are hidden. All five home holes and all 72/108/144 track holes retain their exact IDs and coordinates.
+- Current and recent public played cards are shown separately from private hands. A bounded 256-action public ledger and sequenced visual queue cover rapid updates. Reduced motion, fast playback and silent sound are supported; animations do not authorize moves.
+- Existing waiting countdown options, including 120 seconds, remain server-controlled. No human turn clock was added: this repository did not have a 120-second per-move clock to preserve.
 
-The requested `design-reference/AGENT_FIX_PROMPT.md` directory/file was not present in the supplied local project or user-profile search. Restoration followed the explicit requirements in the user request and the original v0.4.2 archive in Downloads.
+Validation: `npm test` (52 rule/geometry tests), `npm run test:integration` (real Worker routes, privacy, collisions, bot alarms and stats), `npm run build`, and `npx wrangler deploy --dry-run`. Exact coordinate regression: tests/fixtures/geometry-v0.4.2.json. Browser evidence and the animation recording: [v0.5.0 review](docs/trapdoor-v0.5.0/README.md).
+
+Deployment: this branch requires deploying the Worker and then pushing/merging the frontend release to main. No D1 schema migration or wrangler.jsonc changes are needed. Old rooms acquire action history on their next confirmed action; existing positions are not migrated. The test-only fixture entry point is never imported by the production Worker.

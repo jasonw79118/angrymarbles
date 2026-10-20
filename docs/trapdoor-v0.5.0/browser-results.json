@@ -1,0 +1,17 @@
+{
+  "results": [
+    "Two authenticated sessions animate the same confirmed release; inventory drops into avatar pocket and green trapdoor lifts at the locked start.",
+    "Reconnect/re-entry restores the final state without replaying old effects.",
+    "6 sides: exact track/home IDs and coordinates verified; no base rack/hole; five inventory tokens per player; desktop/phone screenshots saved.",
+    "8 sides: exact track/home IDs and coordinates verified; no base rack/hole; five inventory tokens per player; desktop/phone screenshots saved.",
+    "Select 8, tap the exact marble on green START, and play: progress becomes -8 at corner 0.",
+    "Confirmed release animation: opponent collision outcome verified.",
+    "Confirmed release animation: teammate collision outcome verified.",
+    "Confirmed release animation: occupied-red collision outcome verified.",
+    "Own green marble prevents release; no animation, event, card or inventory mutation.",
+    "Reduced-motion preference renders the authoritative final state immediately.",
+    "Fast mode queues two rapid confirmed actions in order without duplicate effects or lost final positions."
+  ],
+  "errors": [],
+  "animationFrames": 11
+}

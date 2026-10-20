@@ -1,6 +1,6 @@
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
 
-export const VERSION = '0.4.2';
+export const VERSION = '0.5.0';
 export const TRACK_PER_SEAT = boardGeometry.TRACK_PER_SIDE;
 export const TRACK = TRACK_PER_SEAT * 8;
 export const MARBLES = 5;
@@ -11,6 +11,7 @@ const FACES = ['J', 'Q', 'K'];
 const FACE = new Set(FACES);
 const MOD = (n, d) => ((n % d) + d) % d;
 const clone = v => JSON.parse(JSON.stringify(v));
+const simulation = room => ({...room,pieces:clone(room.pieces),statEvents:[],actions:[]});
 const boardSidesFor = room => boardGeometry.boardSides(room.mode, room.capacity);
 const trackSize = room => boardGeometry.trackLength(boardSidesFor(room));
 export const exitOf = seat => boardGeometry.startIndex(seat);
@@ -76,6 +77,7 @@ export function startGame(room) {
   room.turnIndex = 0;
   room.turnNumber = 1;
   room.log = ['Game started. Everybody received five cards.'];
+  room.actions=[];room.actionSeq=0;
   drawAtTurnStart(room);
   return room;
 }
@@ -86,16 +88,18 @@ function drawAtTurnStart(room) {
 }
 function pieceFor(room, id) { return room.pieces.find(p => p.id === id); }
 function setBase(p) { p.loc='base';p.progress=0;p.run=-1; }
-function sendHomeOrBase(room, victim, log) {
-  const occupied = room.pieces.some(p => p !== victim && p.seat===victim.seat && p.loc==='run' && p.run===0);
-  if (occupied) {
+function sendToRedOrBase(room, victim, log) {
+  const red=victim.seat*TRACK_PER_SEAT+2;
+  const occupied=room.pieces.some(p=>p!==victim && p.loc==='track' && trackPosition(p,room.boardSides)===red);
+  if(occupied){
     setBase(victim);
-    log.push(`${owner(room,victim.seat)}'s home-run entrance was blocked, so their marble returned to base.`);
-  } else {
-    victim.loc='run'; victim.run=0; victim.progress=0;
-    log.push(`${owner(room,victim.seat)}'s marble was bumped to the beginning of home.`);
+    log.push(`${owner(room,victim.seat)}'s red track marker was occupied; their marble returned to avatar inventory.`);
+  }else{
+    victim.loc='track';victim.progress=MOD(red-exitOf(victim.seat),trackSize(room));victim.run=-1;
+    log.push(`${owner(room,victim.seat)}'s marble moved to their red outer-track marker (still vulnerable).`);
   }
 }
+
 function owner(room, seat) { return room.players.find(p=>p.seat===seat)?.name || 'Player'; }
 function recordStat(room, seat, stat) {
   const actor = room.currentActorSeat ?? seat;
@@ -108,7 +112,7 @@ function trackCollision(room, moving, to, log) {
   const victim = room.pieces.find(p => p !== moving && p.loc==='track' && trackPosition(p,room.boardSides)===to);
   if (!victim) return true;
   if (victim.seat===moving.seat) return false;
-  if (friendly(room,moving.seat,victim.seat)) { sendHomeOrBase(room,victim,log); recordStat(room,moving.seat,'assists'); }
+  if (friendly(room,moving.seat,victim.seat)) { sendToRedOrBase(room,victim,log); recordStat(room,moving.seat,'assists'); }
   else { recordStat(room,moving.seat,'bumps'); setBase(victim); log.push(`${owner(room,victim.seat)} was sent back to base.`); }
   return true;
 }
@@ -116,7 +120,7 @@ function teammateExit(room, p, log) {
   if (room.mode !== 'doubles' || p.loc!=='track') return;
   const destination=trackPosition(p,room.boardSides);
   const mate=room.players.find(q => friendly(room,p.seat,q.seat) && exitOf(q.seat)===destination);
-  if (mate) { log.push(`${owner(room,p.seat)} landed on their teammate's base exit!`); sendHomeOrBase(room,p,log); recordStat(room,mate.seat,'assistExit'); }
+  if (mate) { log.push(`${owner(room,p.seat)} landed on their teammate's base exit!`); sendToRedOrBase(room,p,log); recordStat(room,mate.seat,'assistExit'); }
 }
 function release(room, seat, pId, log) {
   const p=pieceFor(room,pId);
@@ -192,7 +196,7 @@ function choicesForStep(room, seat, piece, steps) {
   if (piece.loc==='run' && steps<=0) return [];
   const options=[{kind:'move',piece:piece.id,steps,home:'circle'}];
   if (piece.loc==='track' && steps>0) options.push({kind:'move',piece:piece.id,steps,home:'enter'});
-  return options.filter(op=>executeOps(clone(room),seat,[op])!==null);
+  return options.filter(op=>executeOps(simulation(room),seat,[op])!==null);
 }
 const pieceLabel = id => {
   const [seat,slot]=String(id).split(':').map(Number);
@@ -210,7 +214,7 @@ export function legalMoves(room, seat) {
   const pieces=room.pieces.filter(p=>p.seat===mover);
   const options=[];
   function add(cardIndex,ops,tag='') {
-    if(executeOps(clone(room),mover,ops)===null) return;
+    if(executeOps(simulation(room),mover,ops)===null) return;
     const id=`${cardIndex}|${ops.map(op=>JSON.stringify(op)).join('|')}`;
     options.push({id,cardIndex,ops,label:(tag?tag+': ':'')+ops.map(stepLabel).join(' + ')});
   }
@@ -262,9 +266,13 @@ function endTurn(room, seat, cardIndex, log, discarded) {
 /** @param {number | null} discardIndex */
 export function play(room, seat, optionId, discardIndex=null) {
   if(room.status!=='playing' || room.players[room.turnIndex].seat!==seat) throw Error('Not your turn.');
+  const before=clone(room.pieces);
   if(discardIndex!==null) {
     if(!Number.isInteger(discardIndex) || discardIndex<0 || discardIndex>=room.hands[seat].length) throw Error('Invalid card.');
+    if(legalMoves(room,seat).some(move=>move.cardIndex===discardIndex))throw Error('This card has a legal move. Select a marble to play it.');
+    const card=clone(room.hands[seat][discardIndex]);
     endTurn(room,seat,discardIndex,[],true);
+    recordAction(room,seat,card,before,[],true,'Pass turn');
     return room;
   }
   const option=legalMoves(room,seat).find(m=>m.id===optionId);
@@ -274,8 +282,22 @@ export function play(room, seat, optionId, discardIndex=null) {
   if (actingSeat(room,seat) !== seat) recordStat(room,seat,'assists');
   delete room.currentActorSeat;
   if(!log) throw Error('Move could not be completed.');
+  const card=clone(room.hands[seat][option.cardIndex]);
   endTurn(room,seat,option.cardIndex,log,false);
+  recordAction(room,seat,card,before,option.ops,false,option.label);
   return room;
+}
+function recordAction(room,seat,card,before,ops,discarded,label){
+  const seq=(room.actionSeq||0)+1;room.actionSeq=seq;
+  const changes=room.pieces.flatMap(to=>{
+    const from=before.find(p=>p.id===to.id);
+    return from&&JSON.stringify(from)!==JSON.stringify(to)?[{from,to:clone(to)}]:[];
+  });
+  const event={id:`${room.code}:${seq}`,seq,gameId:room.code,actorSeat:seat,card,discarded,label,
+    ops:clone(ops),changes,at:Date.now(),turnNumber:room.turnNumber,
+    turnSeat:room.status==='playing'?room.players[room.turnIndex].seat:null,
+    baseCounts:Object.fromEntries(room.players.map(p=>[p.seat,room.pieces.filter(m=>m.seat===p.seat&&m.loc==='base').length]))};
+  room.actions=[...(room.actions||[]),event].slice(-256);
 }
 export function botMove(room) {
   if(room.status!=='playing') return false;
@@ -292,7 +314,7 @@ export function botMove(room) {
         if(op.kind==='move') score+=Math.max(1,op.steps)/2+(op.home==='enter'?45:0);
       }
       const before=room.pieces.filter(p=>p.seat===player.seat&&p.loc==='run').length;
-      const sim=clone(room);executeOps(sim,actingSeat(room,player.seat),option.ops);
+      const sim=simulation(room);executeOps(sim,actingSeat(room,player.seat),option.ops);
       const after=sim.pieces.filter(p=>p.seat===player.seat&&p.loc==='run').length;
       score+=(after-before)*50;
       return {option,score};
@@ -311,7 +333,7 @@ export function roomView(room, userId) {
     visibility:room.visibility, status:room.status,fillAt:room.fillAt,createdAt:room.createdAt,
     players:room.players.map(p=>({id:p.id,name:p.name,seat:p.seat,isBot:p.isBot,color:p.color, 
       marbleCount:room.pieces?.filter(m=>m.seat===p.seat&&m.loc==='home').length||0,
-      baseCount:room.pieces ? room.pieces.filter(m=>m.seat===p.seat&&m.loc==='base').length : MARBLES,
+      baseCount:room.status==='waiting'?MARBLES:room.pieces ? room.pieces.filter(m=>m.seat===p.seat&&m.loc==='base').length : MARBLES,
       handCount:room.hands?.[p.seat]?.length||0})),
     pieces:room.pieces||[], mySeat:me?.seat??null,
     myHand:me && room.hands?room.hands[me.seat]:[],
@@ -323,6 +345,7 @@ export function roomView(room, userId) {
     turnNumber:room.turnNumber||0, dealerSeat:room.players[room.dealerIndex||0]?.seat??null,
     startedCountdown:!!room.startedCountdown, preferredRelation:room.preferredRelation||'against',
     waitSeconds:room.waitSeconds||90, hostId:room.hostId,
-    myColor:me?.color||null
+    myColor:me?.color||null,
+    actions:room.actions||[],actionSeq:room.actionSeq||0,botReadyAt:room.botReadyAt||null
   };
 }

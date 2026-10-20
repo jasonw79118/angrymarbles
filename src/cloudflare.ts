@@ -44,19 +44,23 @@ export async function api<T>(path:string,body?:Record<string,unknown>):Promise<T
   return request<T>(`/angry-marbles${path}`,body);
 }
 export function subscribeRoom(code:string,onChange:()=>void,onError:(error:Error)=>void):()=>void{
-  const controller=new AbortController();
-  void (async()=>{
-    const result=await request<{ticket:string}>(`/angry-marbles/room/${encodeURIComponent(code)}/events-ticket`,{});
-    if(controller.signal.aborted)return;
-    const endpoint=new URL(`${apiBase}/angry-marbles/room/${encodeURIComponent(code)}/events?ticket=${encodeURIComponent(result.ticket)}`,window.location.href);
-    endpoint.protocol=window.location.protocol==='https:'?'wss:':'ws:';
-    const socket=new WebSocket(endpoint);
-    controller.signal.addEventListener('abort',()=>socket.close(1000,'Leaving room.'),{once:true});
-    socket.onmessage=event=>{try{if(JSON.parse(String(event.data)).changed)onChange();}catch{}};
-    await new Promise<void>((resolve,reject)=>{socket.onopen=()=>resolve();socket.onerror=()=>reject(new Error('Realtime connection failed.'));socket.onclose=event=>{if(!controller.signal.aborted&&event.code!==1000)reject(new Error('Realtime connection closed.'));};});
-    await new Promise<void>(resolve=>{socket.onclose=()=>resolve();});
-  })().catch(reason=>{if(!controller.signal.aborted)onError(reason instanceof Error?reason:new Error(String(reason)));});
-  return()=>controller.abort();
+  let stopped=false,socket:WebSocket|null=null,retry:ReturnType<typeof setTimeout>|null=null,attempt=0;
+  const connect=async()=>{
+    try{
+      const result=await request<{ticket:string}>(`/angry-marbles/room/${encodeURIComponent(code)}/events-ticket`,{});
+      if(stopped)return;
+      const endpoint=new URL(`${apiBase}/angry-marbles/room/${encodeURIComponent(code)}/events?ticket=${encodeURIComponent(result.ticket)}`,window.location.href);
+      endpoint.protocol=endpoint.protocol==='https:'?'wss:':'ws:';
+      socket=new WebSocket(endpoint);
+      socket.onopen=()=>{attempt=0;onChange();};
+      socket.onmessage=event=>{try{if(JSON.parse(String(event.data)).changed)onChange();}catch{}};
+      socket.onerror=()=>{if(!stopped)onError(new Error('Realtime connection interrupted; reconnecting.'));};
+      socket.onclose=()=>schedule();
+    }catch(reason){if(!stopped){onError(reason instanceof Error?reason:new Error(String(reason)));schedule();}}
+  };
+  const schedule=()=>{if(!stopped)retry=setTimeout(()=>void connect(),Math.min(15000,1000*2**attempt++));};
+  void connect();
+  return()=>{stopped=true;if(retry)clearTimeout(retry);socket?.close(1000,'Leaving room.');};
 }
 export const gameApi={
   profile:()=>api<Profile>('/profile'),

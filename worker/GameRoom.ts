@@ -11,7 +11,7 @@ type Room = {
   startedCountdown:boolean; waitSeconds:number; preferredRelation:Relation;
   players:Player[]; pieces:any[]; hands:Record<number,any[]>; turnIndex:number; turnNumber:number;
   deck:any[]; discards:any[]; dealerIndex:number; log:string[]; statEvents:any[];
-  winners:number[]|null; statsFinalized?:boolean; boardSides?:number;
+  winners:number[]|null; statsFinalized?:boolean; boardSides?:number; botReadyAt?:number|null;
 };
 
 type Env = { DB:D1Database };
@@ -55,8 +55,11 @@ export class GameRoom {
     }
   }
   private async runBots(room:Room):Promise<void>{
-    let remaining=8;
-    while(room.status==='playing'&&room.players[room.turnIndex]?.isBot&&remaining-->0)botMove(room);
+    // One persisted alarm per bot turn; never hide an entire bot round in one response.
+    if(room.status==='playing'&&room.players[room.turnIndex]?.isBot){
+      room.botReadyAt ||= Date.now()+4500;
+      await this.state.storage.setAlarm(room.botReadyAt);
+    }else room.botReadyAt=null;
     await this.flushStats(room);
   }
   private async notify():Promise<void>{
@@ -142,7 +145,11 @@ export class GameRoom {
       const membership=await this.memberRoom(request);
       if(membership instanceof Response)return membership;
       const {room}=membership;
-      if(path==='/view'&&method==='GET')return this.json(roomView(room,userId!));
+      if(path==='/view'&&method==='GET'){
+        // Recover a pre-v0.5.0 bot turn with no scheduled alarm.
+        if(room.status==='playing'&&room.players[room.turnIndex]?.isBot&&!room.botReadyAt){await this.runBots(room);await this.save(room);}
+        return this.json(roomView(room,userId!));
+      }
       if(path==='/countdown'&&method==='POST'){
         if(room.hostId!==userId)return this.failure('Only the host can start the countdown.',403);
         if(room.status!=='waiting'||room.startedCountdown)return this.failure('The countdown already started.',409);
@@ -156,7 +163,7 @@ export class GameRoom {
         if(room.hostId!==userId)return this.failure('Only the host can start computer play.',403);
         if(room.status!=='waiting')return this.failure('This game has already started.',409);
         room.startedCountdown=true;room.fillAt=Date.now();
-        await this.fillRoom(room);await this.state.storage.deleteAlarm();await this.save(room);await this.syncDirectory(room);await this.notify();
+        await this.fillRoom(room);await this.save(room);await this.syncDirectory(room);await this.notify();
         return this.json({ok:true});
       }
       if(path==='/color'&&method==='POST'){
@@ -193,6 +200,14 @@ export class GameRoom {
     startGame(room);await this.runBots(room);
   }
   async alarm():Promise<void>{
-    await this.serialized(async()=>{const room=await this.load();if(!room)return;await this.fillRoom(room);await this.save(room);await this.syncDirectory(room);await this.notify();});
+    await this.serialized(async()=>{
+      const room=await this.load();if(!room)return;
+      if(room.status==='waiting')await this.fillRoom(room);
+      else if(room.status==='playing'&&room.players[room.turnIndex]?.isBot){
+        if(room.botReadyAt&&Date.now()<room.botReadyAt){await this.state.storage.setAlarm(room.botReadyAt);return;}
+        botMove(room);room.botReadyAt=null;await this.runBots(room);
+      }
+      await this.save(room);await this.syncDirectory(room);await this.notify();
+    });
   }
 }

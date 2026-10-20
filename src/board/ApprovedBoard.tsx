@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { Piece, Player } from '../types';
+import type { Piece, Player, ConfirmedAction } from '../types';
+import {animateAction} from './animateAction';
 import boardGeometry from '../../pb_hooks/boardGeometry.cjs';
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
   selectedPieceIds?: string[];
   onPieceSelect?: (pieceId:string)=>void;
   showIndices?: boolean;
+  action?: ConfirmedAction|null;
+  fast?: boolean;
 };
 
 type Point = { x: number; y: number };
@@ -17,9 +20,9 @@ type Point = { x: number; y: number };
 const COLORS = ['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3'];
 const add = (origin: Point, direction: Point, distance = 1): Point => ({x:origin.x+direction.x*distance,y:origin.y+direction.y*distance});
 
-export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],onPieceSelect,showIndices=false}:Props){
+export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],onPieceSelect,showIndices=false,action=null,fast=false}:Props){
   const svgRef=useRef<SVGSVGElement>(null);
-  const previousRef=useRef<Piece[]>([]);
+
   const onPieceSelectRef=useRef(onPieceSelect);
 
   useEffect(()=>{onPieceSelectRef.current=onPieceSelect;},[onPieceSelect]);
@@ -59,6 +62,7 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const slot=Number(id.split(':')[1]);
       const owner=seatPlayers.get(seat)?.name||`Player ${seat+1}`;
       const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:0,'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
+      el('circle',{cx:position.x,cy:position.y,r:18,fill:'transparent',class:'piece-hit'},group);
       if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
       el('circle',{cx:position.x,cy:position.y,r:10.5,fill:`url(#ball${seat%COLORS.length})`,stroke:selected?'#fff2ad':'#fff8','stroke-width':selected?2.4:1.3},group);
       el('ellipse',{cx:position.x-3.3,cy:position.y-3.8,rx:3.1,ry:1.9,fill:'#fff',opacity:.72},group);
@@ -77,29 +81,6 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       if(position)return position;
       console.warn('Missing board position for marble',piece.id,piece.seat,piece.loc,piece.slot,piece.run,piece.progress);
       return side.base[0];
-    };
-    const pathOf=(from:Piece,to:Piece):Point[]=>{
-      const path=[positionOf(from)];
-      if(from.loc==='track'&&to.loc==='track'){
-        const step=Math.sign(to.progress-from.progress);
-        for(let progress=from.progress+step;step&&((progress-to.progress)*step)<=0;progress+=step){
-          const index=boardGeometry.trackIndex(from.seat,progress,sideCount);
-          path.push(geo.sides[Math.floor(index/18)].holes[index%18]);
-        }
-      }else if(from.loc==='track'&&(to.loc==='run'||to.loc==='home')){
-        let threshold=boardGeometry.homeEntryProgress(from.seat,sideCount);
-        while(threshold<=from.progress)threshold+=sideCount*18;
-        for(let progress=from.progress+1;progress<threshold;progress++){
-          const index=boardGeometry.trackIndex(from.seat,progress,sideCount);
-          path.push(geo.sides[Math.floor(index/18)].holes[index%18]);
-        }
-        for(let position=0;position<=Math.min(to.run,4);position++)path.push(geo.sides[to.seat].home[position]);
-      }else if(from.loc==='run'&&(to.loc==='run'||to.loc==='home')){
-        for(let position=from.run+1;position<=Math.min(to.run,4);position++)path.push(geo.sides[to.seat].home[position]);
-      }else{
-        path.push(positionOf(to));
-      }
-      return path;
     };
     const activeSide=geo.sides[activeSeat]||geo.sides[0];
     const boardOrientation=180-Math.atan2(activeSide.along.y,activeSide.along.x)*180/Math.PI;
@@ -144,9 +125,7 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       };
       geo.sides.forEach((side,seat)=>{
         roundedWood(add(side.red,side.inward,12),add(side.red,side.inward,126),29,'#8c4835');
-        roundedWood(add(side.green,side.inward,33),add(side.green,side.inward,151),34,'#306e54');
         side.home.forEach((position,index)=>carvedHole(position,'#482212','#daab62',7.3,'home',`${seat}-${index}`));
-        side.base.forEach((position,index)=>carvedHole(position,'#402314','#b98d5b',10,'base',`${seat}-${index}`));
         side.track.forEach((position,index)=>{
           const marker=index===2?'red':index===8?'green':null;
           carvedHole(position,marker==='red'?'#c82e3c':marker==='green'?'#0a976b':'#422012',marker==='red'?'#ff9d98':marker==='green'?'#9ee4b4':'#d59b53',7.7,'track',String(seat*18+index));
@@ -162,12 +141,8 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
           el('rect',{x:-65,y:-16,width:130,height:32,rx:9,fill:'#0b2133',stroke:color,'stroke-width':3,opacity:1},group);
           const text=el('text',{x:0,y:8,'text-anchor':'middle',fill:'#fff','font-size':25,'font-weight':1000,'letter-spacing':.25,stroke:'#061526','stroke-width':2.5},group);text.textContent=label;
         };
-        laneLabel(side.red,'HOME','#fa5b61');laneLabel(side.green,'BASE','#38cc96');
-        const basePieces=pieces.filter(piece=>piece.seat===seat&&piece.loc==='base');
-        basePieces.forEach(piece=>marble(side.base[4-piece.slot],seat,piece.id,selectedPieces.has(piece.id)));
-        const badge=add(side.green,side.inward,169);
-        el('circle',{cx:badge.x,cy:badge.y,r:14,fill:'#102842',stroke:colorFor(seat),'stroke-width':2});
-        const count=el('text',{x:badge.x,y:badge.y+5,'text-anchor':'middle',fill:'#fff','font-weight':900,'font-size':15});count.textContent=String(basePieces.length);
+        laneLabel(side.red,'HOME','#fa5b61');laneLabel(side.green,'START','#38cc96');
+
       });
       for(const piece of pieces.filter(item=>item.loc==='track'))marble(positionOf(piece),piece.seat,piece.id,selectedPieces.has(piece.id));
       for(const piece of pieces.filter(item=>item.loc==='run'||item.loc==='home'))marble(positionOf(piece),piece.seat,piece.id,selectedPieces.has(piece.id));
@@ -186,41 +161,17 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const info=el('text',{x:title.x,y:title.y+83,'text-anchor':'middle',fill:'#a5d3df','font-size':15,'letter-spacing':2});info.textContent=`${sideCount} SIDES  ·  ${sideCount*18} TRACK SPACES`;
       return layer;
     };
-    const previous=previousRef.current;
     const boardLayer=draw();
-    previousRef.current=pieces.map(piece=>({...piece}));
-    const animations:Array<{frame:number;group:SVGGElement;staticMarble:Element|null}>=[];
-    for(const piece of pieces){
-      const old=previous.find(candidate=>candidate.id===piece.id);
-      if(!old||old.loc===piece.loc&&old.progress===piece.progress&&old.run===piece.run)continue;
-      const finalMarble=boardLayer.querySelector(`[data-piece-id="${piece.id}"]`);
-      if(!finalMarble)continue;
-          const group=marble(positionOf(old),piece.seat,`moving-${piece.id}`,selectedPieces.has(piece.id)) as SVGGElement;
-      finalMarble.setAttribute('opacity','0');
-      boardLayer.append(group);
-      const route=pathOf(old,piece);
-      const frame=window.requestAnimationFrame(()=>{
-        const started=performance.now();
-        const segmentDuration=old.loc==='base'?740:150;
-        const duration=route.length===1?330:segmentDuration*(route.length-1);
-        const tick=(time:number)=>{
-          const elapsed=Math.min(duration,time-started);
-          const segment=Math.min(route.length-2,Math.floor(elapsed/segmentDuration));
-          const progress=route.length===1?1:Math.min(1,(elapsed-segment*segmentDuration)/segmentDuration);
-          const eased=1-Math.pow(1-progress,old.loc==='base'?3:2);
-          const from=route[segment]||route[0],to=route[segment+1]||route[0];
-          const x=from.x+(to.x-from.x)*eased,y=from.y+(to.y-from.y)*eased;
-          group.querySelectorAll('circle').forEach(node=>{node.setAttribute('cx',String(x));node.setAttribute('cy',String(y));});
-          group.querySelectorAll('ellipse').forEach(node=>{node.setAttribute('cx',String(x-3.3));node.setAttribute('cy',String(y-3.8));});
-          if(elapsed<duration)window.requestAnimationFrame(tick);
-          else{group.remove();finalMarble.setAttribute('opacity','1');}
-        };
-        window.requestAnimationFrame(tick);
-      });
-      animations.push({frame,group,staticMarble:finalMarble});
+    if(action){
+      try{return animateAction(svg,boardLayer,sideCount,players,action,marble,fast);}
+      catch{
+        // Presentation failures must never hide or change the confirmed game result.
+        document.querySelectorAll('.inventory-flight').forEach(node=>node.remove());
+        draw();
+      }
     }
-    return ()=>{for(const animation of animations){window.cancelAnimationFrame(animation.frame);animation.group.remove();animation.staticMarble?.setAttribute('opacity','1');}};
-  },[sideCount,players,pieces,activeSeat,selectedPieceIds,showIndices]);
+  },[sideCount,JSON.stringify(players),JSON.stringify(pieces),activeSeat,selectedPieceIds.join(','),showIndices,action?.id,fast]);
+
 
   return <svg ref={svgRef} id="board" viewBox="0 0 1040 970" aria-label="Accurate Angry Marbles board geometry" role="img"/>;
 }
