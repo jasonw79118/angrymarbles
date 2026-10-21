@@ -1,97 +1,130 @@
 import type {ConfirmedAction,Piece,Player} from '../types';
 import boardGeometry from '../../pb_hooks/boardGeometry.cjs';
+import {buildActionTimeline} from './actionTimeline.js';
 
 type Point={x:number;y:number};
-type Marble=(point:Point,seat:number,id:string,selected?:boolean)=>Element;
+type Marble=(position:Point,seat:number,id:string,selected?:boolean)=>Element;
+type Job={name:string;pieceId:string;seat:number;at:number;duration:number;start?:()=>void;tick:(t:number)=>void;finish?:()=>void;started?:boolean;done?:boolean};
 
+// Adaptation of v0.6.0 screenPoint, pocketPoint, flyBall and showBoardLift.
+// No rule decisions occur here: only confirmed from/to states and locked coordinates.
 export function animateAction(svg:SVGSVGElement,layer:SVGGraphicsElement,sideCount:number,players:Player[],action:ConfirmedAction,marble:Marble,fast:boolean){
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return ()=>{};
-  const geo=boardGeometry.geometry(sideCount),factor=fast?.28:1;
-  const effects:Animation[]=[],nodes:Element[]=[],hidden:Element[]=[];
-  const jobs:Array<{delay:number;duration:number;update:(t:number)=>void}>=[];
-  const position=(p:Piece):Point=>{
-    if(p.loc==='track'){const index=boardGeometry.trackIndex(p.seat,p.progress,sideCount);return geo.sides[Math.floor(index/18)].holes[index%18];}
-    if(p.loc==='run'||p.loc==='home')return geo.sides[p.seat].home[Math.min(4,Math.max(0,p.run))];
-    return geo.sides[p.seat].green;
+  const plan=buildActionTimeline(action,sideCount,{fast,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches});
+  if(!plan.steps.length)return ()=>{};
+  const geo=boardGeometry.geometry(sideCount),nodes:Element[]=[],restore:Array<()=>void>=[],jobs:Job[]=[];
+  const color=(seat:number)=>players.find(p=>p.seat===seat)?.color||'#2499ff';
+  const point=(piece:Piece):Point=>{
+    if(piece.loc==='base')return geo.sides[piece.seat].green;
+    if(piece.loc==='track'){const i=boardGeometry.trackIndex(piece.seat,piece.progress,sideCount);return geo.sides[Math.floor(i/18)].holes[i%18];}
+    return geo.sides[piece.seat].home[Math.min(4,Math.max(0,piece.run))];
   };
-  const moving=(p:Piece)=>{
-    const final=layer.querySelector(`[data-piece-id="${p.id}"]`);
-    if(final){final.setAttribute('opacity','0');hidden.push(final);}
-    const group=marble(position(p),p.seat,`moving-${p.id}`);group.setAttribute('pointer-events','none');layer.append(group);nodes.push(group);return group;
+  const screen=(p:Point)=>{const matrix=layer.getScreenCTM();return matrix?new DOMPoint(p.x,p.y).matrixTransform(matrix):null;};
+  const center=(selector:string)=>{const r=document.querySelector(selector)?.getBoundingClientRect();return r?{x:r.left+r.width/2,y:r.top+r.height/2}:null;};
+  const pocket=(seat:number)=>center(`[data-inventory-pocket="${seat}"]`);
+  const hide=(node:Element|null)=>{if(!node)return;const value=node.getAttribute('opacity');node.setAttribute('opacity','0');restore.push(()=>value===null?node.removeAttribute('opacity'):node.setAttribute('opacity',value));};
+  const sElt=(tag:string,attrs:Record<string,string|number>,parent:Element=layer)=>{
+    const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for(const [key,value]of Object.entries(attrs))node.setAttribute(key,String(value));parent.append(node);return node;
   };
-  const screen=(point:Point)=>{const matrix=layer.getScreenCTM?.();return matrix?new DOMPoint(point.x,point.y).matrixTransform(matrix):null;};
-  const pocket=(seat:number)=>document.querySelector<HTMLElement>(`[data-inventory-pocket="${seat}"]`);
-  const color=(seat:number)=>players.find(p=>p.seat===seat)?.color||'#329bff';
-  const collision=action.changes.filter(c=>!action.ops.some(op=>op.piece===c.to.id));
-  const collisionTime=collision.length?550:0;
-  for(const change of collision){
+  const moving=new Map<string,{group:Element;origin:Point}>();
+  const getMoving=(piece:Piece)=>{
+    const old=moving.get(piece.id);if(old)return old;
+    const origin=piece.loc==='base'?geo.sides[piece.seat].green:point(piece);
+    const group=marble(origin,piece.seat,`moving-${piece.id}`);group.setAttribute('pointer-events','none');layer.append(group);nodes.push(group);
+    const entry={group,origin};moving.set(piece.id,entry);return entry;
+  };
+  for(const change of action.changes)hide(layer.querySelector(`[data-piece-id="${change.to.id}"]`));
+  const markPhase=(job:Job)=>{
+    svg.dataset.animationAction=action.id;svg.dataset.animationPhase=job.name;
+    svg.dispatchEvent(new CustomEvent('angrymarbles:visual-phase',{bubbles:true,detail:{actionId:action.id,name:job.name,seat:job.seat}}));
+  };
+  const pulse=(seat:number,on:boolean)=>document.querySelector(`[data-inventory-pocket="${seat}"]`)?.classList.toggle('pulse',on);
+  const flight=(seat:number)=>{
+    const orb=document.createElement('i');orb.className='inventory-flight v060-flight';orb.style.setProperty('--flight-color',color(seat));
+    orb.style.left='0';orb.style.top='0';orb.setAttribute('aria-hidden','true');document.body.append(orb);nodes.push(orb);return orb;
+  };
+  for(const step of plan.steps){
+    const change=action.changes.find(c=>c.to.id===step.pieceId);if(!change)continue;
     const {from,to}=change;
-    if(to.loc==='base'){
-      // Board -> avatar is an ejection; releases themselves teleport through two separate openings.
-      const group=moving(from);group.setAttribute('opacity','0');
-      const source=screen(position(from)),target=pocket(to.seat)?.getBoundingClientRect();
-      if(source&&target){
-        const orb=document.createElement('i');orb.className='inventory-flight';orb.style.backgroundColor=color(to.seat);
-        orb.style.left=`${source.x}px`;orb.style.top=`${source.y}px`;document.body.append(orb);nodes.push(orb);
-        const dx=target.x+target.width/2-source.x,dy=target.y+target.height/2-source.y;
-        effects.push(orb.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},{transform:`translate(calc(-50% + ${dx*.5}px),calc(-50% + ${dy*.5-70}px)) scale(1.2)`,opacity:1},{transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.3)`,opacity:0}],{duration:500*factor,fill:'forwards',easing:'ease-in-out'}));
-      }
+    const job:Job={...step,tick:()=>{}};
+    if(step.name==='opponent-to-inventory'){
+      const old=getMoving(from),token=document.querySelector<HTMLElement>(`[data-inventory-piece="${to.id}"]`);
+      if(token){const previous=token.style.visibility;token.style.visibility='hidden';restore.push(()=>{token.style.visibility=previous;});}
+      let orb:HTMLElement|null=null;
+      job.start=()=>{old.group.setAttribute('opacity','0');orb=flight(to.seat);pulse(to.seat,true);};
+      job.tick=t=>{const a=screen(point(from)),b=pocket(to.seat);if(!a||!b||!orb)return;const ease=1-(1-t)**2;
+        orb.style.transform=`translate(${a.x+(b.x-a.x)*ease-11}px,${a.y+(b.y-a.y)*ease-55*Math.sin(t*Math.PI)-11}px) scale(${1-.65*t})`;orb.style.opacity=String(1-.4*t);};
+      job.finish=()=>{orb?.remove();if(token)token.style.visibility='';pulse(to.seat,false);};
+    }else if(step.name==='teammate-to-red'){
+      const old=getMoving(from),a=point(from),b=point(to);
+      const trail=sElt('path',{d:`M${a.x} ${a.y} Q${(a.x+b.x)/2} ${(a.y+b.y)/2-55} ${b.x} ${b.y}`,fill:'none',stroke:color(to.seat),'stroke-width':3,opacity:0,'pointer-events':'none',class:'teleport-trail'});nodes.push(trail);
+      job.tick=t=>{const ease=1-(1-t)**2;old.group.setAttribute('transform',`translate(${(b.x-a.x)*ease} ${(b.y-a.y)*ease-55*Math.sin(t*Math.PI)})`);trail.setAttribute('opacity',String(Math.sin(t*Math.PI)*.8));};
+    }else if(step.name==='inventory-pocket-drop'){
+      const released=getMoving({...to,loc:'base'});released.group.setAttribute('opacity','0');let orb:HTMLElement|null=null;
+      job.start=()=>{orb=flight(to.seat);pulse(to.seat,true);};
+      job.tick=t=>{const a=center(`[data-inventory-piece="${to.id}"]`),b=pocket(to.seat);if(!a||!b||!orb)return;
+        orb.style.transform=`translate(${a.x+(b.x-a.x)*t-11}px,${a.y+(b.y-a.y)*t-15*Math.sin(t*Math.PI)-11}px) scale(${.8-.65*t})`;orb.style.opacity=String(1-.75*t);};
+      job.finish=()=>{orb?.remove();pulse(to.seat,false);};
+    }else if(step.name==='green-trapdoor-open'){
+      const p=point(to),id=boardGeometry.trackIndex(to.seat,to.progress,sideCount);
+      const inner=layer.querySelector(`[data-hole-inner="track-${id}"]`);
+      if(inner){const previous=inner.getAttribute('fill')||'#00684f';restore.push(()=>inner.setAttribute('fill',previous));}
+      const lid=sElt('g',{class:'trapdoor-lid','data-trap-track':id,'pointer-events':'none'});nodes.push(lid);
+      const top=sElt('path',{d:'M-8 0 A8 8 0 0 1 8 0 Z',fill:'#25dca4',stroke:'#f6cf75','stroke-width':1.2},lid);
+      const bottom=sElt('path',{d:'M8 0 A8 8 0 0 1 -8 0 Z',fill:'#08765a',stroke:'#f6cf75','stroke-width':1.2},lid);
+      lid.setAttribute('transform',`translate(${p.x} ${p.y})`);lid.setAttribute('opacity','0');
+      job.start=()=>{inner?.setAttribute('fill','#020406');lid.setAttribute('opacity','1');};
+      job.tick=t=>{top.setAttribute('transform',`translate(0 ${-7*t}) scale(1 ${1-.92*t})`);bottom.setAttribute('transform',`translate(0 ${7*t}) scale(1 ${1-.92*t})`);};
+      job.finish=()=>lid.setAttribute('opacity','.25');
+    }else if(step.name==='green-marble-rise'){
+      const p=point(to),released=getMoving({...to,loc:'base'});
+      job.tick=t=>{const matrix=layer.getScreenCTM(),inverse=matrix?.inverse();
+        const zero=inverse?new DOMPoint(0,0).matrixTransform(inverse):{x:0,y:0};
+        const offset=inverse?new DOMPoint(0,18*(1-t)).matrixTransform(inverse):{x:0,y:18*(1-t)};
+        const scale=t<.75?.1+1.05*(t/.75):1.15-.15*((t-.75)/.25);
+        released.group.setAttribute('opacity',String(Math.min(1,t*4)));
+        released.group.setAttribute('transform',`translate(${p.x+offset.x-zero.x} ${p.y+offset.y-zero.y}) scale(${scale}) translate(${-p.x} ${-p.y})`);};
+    }else if(step.name==='green-trapdoor-close'){
+      job.tick=t=>layer.querySelectorAll('.trapdoor-lid').forEach(node=>node.setAttribute('opacity',String(.25*(1-t))));
+      job.finish=()=>layer.querySelectorAll('.trapdoor-lid').forEach(node=>node.remove());
     }else{
-      const group=moving(from),a=position(from),b=position(to);
-      jobs.push({delay:0,duration:500,update:t=>group.setAttribute('transform',`translate(${(b.x-a.x)*t} ${(b.y-a.y)*t-35*Math.sin(t*Math.PI)})`)});
-    }
-  }
-  action.ops.forEach((op,opIndex)=>{
-    const change=action.changes.find(c=>c.to.id===op.piece);if(!change)return;
-    const {from,to}=change;
-    if(op.kind==='release'){
-      const start=geo.sides[to.seat].green,group=moving({...from,loc:'track',progress:0});
-      group.setAttribute('opacity','0');
-      const token=document.querySelector<HTMLElement>(`[data-inventory-piece="${to.id}"]`);
-      if(token){
-        const a=token.getBoundingClientRect(),b=pocket(to.seat)?.getBoundingClientRect();
-        const dx=b?b.x+b.width/2-a.x-a.width/2:0,dy=b?b.y+b.height/2-a.y-a.height/2:45;
-        effects.push(token.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:`translate(${dx*.5}px,${Math.min(-8,dy*.5)}px) scale(.9)`,opacity:1},{transform:`translate(${dx}px,${dy}px) scale(.15)`,opacity:0}],{delay:collisionTime*factor,duration:380*factor,fill:'none',easing:'ease-in'}));
-      }
-      const pocketNode=pocket(to.seat);
-      if(pocketNode)effects.push(pocketNode.animate([{boxShadow:'0 0 0 #61faff00'},{boxShadow:'0 0 22px #61faff'},{boxShadow:'0 0 0 #61faff00'}],{delay:collisionTime*factor,duration:800*factor}));
-      // The lid is a visual overlay precisely on the existing green hole, never another hole.
-      const lid=svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg','ellipse');
-      for(const [key,value] of Object.entries({cx:start.x,cy:start.y,rx:8,ry:7,fill:'#27c68c',stroke:'#a8ffda','stroke-width':1.4,'pointer-events':'none',class:'trapdoor-lid','data-trap-track':to.seat*18+8}))lid.setAttribute(key,String(value));
-      layer.insertBefore(lid,group);nodes.push(lid);
-      jobs.push({delay:collisionTime+300,duration:200,update:t=>{lid.setAttribute('ry',String(7*(1-t)+.3));lid.setAttribute('cy',String(start.y-7*t));}});
-      jobs.push({delay:collisionTime+520,duration:650,update:t=>{group.setAttribute('opacity',String(Math.min(1,t*3)));group.setAttribute('transform',`translate(${start.x} ${start.y+17*(1-t)}) scale(${.15+.85*t}) translate(${-start.x} ${-start.y})`);}});
-      jobs.push({delay:collisionTime+1170,duration:180,update:t=>{lid.setAttribute('opacity',String(1-t));}});
-    }else{
-      const group=moving(from),origin=position(from),route:Point[]=[origin];
-      if(op.kind==='move'&&from.loc==='track'&&to.loc==='track'&&op.steps){
-        // Normal movement follows every existing indexed hole, including negative progress.
-        for(let step=1;step<=Math.abs(op.steps);step++)route.push(position({...from,progress:from.progress+step*Math.sign(op.steps)}));
-        const last=route.at(-1)!;const target=position(to);
-        if(Math.hypot(last.x-target.x,last.y-target.y)>.01)route.push(target); // confirmed teammate-red redirect
+      const old=getMoving(from),route:Point[]=[point(from)];
+      const op=action.ops.find(op=>op.piece===to.id);
+      if(from.loc==='track'&&to.loc==='track'&&op?.steps){
+        for(let i=1;i<=Math.abs(op.steps);i++)route.push(point({...from,progress:from.progress+i*Math.sign(op.steps)}));
+        const target=point(to),last=route.at(-1)!;if(Math.hypot(target.x-last.x,target.y-last.y)>.01)route.push(target);
       }else if(from.loc==='track'&&(to.loc==='run'||to.loc==='home')){
         let entry=boardGeometry.homeEntryProgress(from.seat,sideCount);while(entry<=from.progress)entry+=sideCount*18;
-        for(let progress=from.progress+1;progress<entry;progress++)route.push(position({...from,progress}));
-        for(let run=0;run<=Math.min(to.run,4);run++)route.push(geo.sides[to.seat].home[run]);
+        for(let progress=from.progress+1;progress<entry;progress++)route.push(point({...from,progress}));
+        for(let i=0;i<=Math.min(4,to.run);i++)route.push(geo.sides[to.seat].home[i]);
       }else if(from.loc==='run'&&(to.loc==='run'||to.loc==='home')){
-        for(let run=from.run+1;run<=Math.min(to.run,4);run++)route.push(geo.sides[to.seat].home[run]);
-      }else route.push(position(to));
-      const duration=Math.min(2500,Math.max(450,(route.length-1)*140));
-      jobs.push({delay:collisionTime+opIndex*100,duration,update:t=>{
-        const progress=t*(route.length-1),index=Math.min(route.length-2,Math.floor(progress)),part=progress-index;
-        const a=route[Math.max(0,index)]||origin,b=route[index+1]||a;
-        group.setAttribute('transform',`translate(${a.x+(b.x-a.x)*part-origin.x} ${a.y+(b.y-a.y)*part-origin.y})`);
-      }});
+        for(let i=from.run+1;i<=Math.min(4,to.run);i++)route.push(geo.sides[to.seat].home[i]);
+      }else route.push(point(to));
+      job.tick=t=>{const f=t*(route.length-1),i=Math.min(Math.max(0,route.length-2),Math.floor(f)),part=f-i,a=route[i],b=route[i+1]||a;
+        old.group.setAttribute('transform',`translate(${a.x+(b.x-a.x)*part-old.origin.x} ${a.y+(b.y-a.y)*part-old.origin.y})`);};
     }
-  });
-  let frame=0,disposed=false;const started=performance.now();
-  const finish=()=>{for(const node of nodes)node.remove();for(const node of hidden)node.setAttribute('opacity','1');};
+    jobs.push(job);
+  }
+  let disposed=false,frame=0;const started=performance.now();
+  const cleanup=()=>{
+    for(const node of nodes)node.remove();for(const undo of restore)undo();for(const p of players)pulse(p.seat,false);
+    delete svg.dataset.animationAction;delete svg.dataset.animationPhase;
+  };
   const tick=(now:number)=>{
     if(disposed)return;
-    let complete=true;
-    for(const job of jobs){const t=Math.max(0,Math.min(1,((now-started)/factor-job.delay)/job.duration));job.update(t);if(t<1)complete=false;}
-    if(!complete)frame=requestAnimationFrame(tick);else finish();
+    try{
+      let complete=true;
+      for(const job of jobs){
+        if(job.done)continue;const elapsed=now-started-job.at;
+        if(elapsed<0){complete=false;continue;}
+        if(!job.started){job.started=true;markPhase(job);job.start?.();}
+        const t=Math.min(1,elapsed/job.duration);job.tick(t);
+        if(t===1){job.done=true;job.finish?.();}else complete=false;
+      }
+      if(complete){cleanup();return;}
+      frame=requestAnimationFrame(tick);
+    }catch{cleanup();} // VFX failure restores the confirmed result, never a partial position.
   };
   frame=requestAnimationFrame(tick);
-  return ()=>{disposed=true;cancelAnimationFrame(frame);for(const effect of effects)effect.cancel();finish();};
+  return ()=>{disposed=true;cancelAnimationFrame(frame);cleanup();};
 }

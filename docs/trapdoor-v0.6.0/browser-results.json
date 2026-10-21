@@ -1,0 +1,39 @@
+{
+  "results": [
+    "4/6/8 production-renderer boards: exact coordinates/counts, v0.6.0 reference materials, new avatar assets, inventories above board, and no phone overflow.",
+    "Two authenticated sessions observe exactly one ordered pocket-drop/open/rise/close sequence for the same confirmed action; selection alone produces no effects.",
+    "Re-entry/reconnect restores final state without replay.",
+    "Opponent and blocked-red inventory ejections precede the pocket drop; teammate teleport ends at their vulnerable red outer-track marker. Existing occupied-red warning remains.",
+    "Own green still blocks release with no event; backward eight still moves from green to corner 0.",
+    "Reduced motion skips all effects and renders confirmed positions.",
+    "Fast playback queues two rapid server-confirmed releases in order without duplicate phases."
+  ],
+  "counts": [
+    {
+      "players": 4,
+      "track": 72,
+      "home": 20,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true
+    },
+    {
+      "players": 6,
+      "track": 108,
+      "home": 30,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true
+    },
+    {
+      "players": 8,
+      "track": 144,
+      "home": 40,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true
+    }
+  ],
+  "errors": [],
+  "animationFrames": 17
+}

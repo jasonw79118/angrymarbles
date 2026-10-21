@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import type {ConfirmedAction,RoomState} from './types';
+import {buildActionTimeline} from './board/actionTimeline.js';
 
 export function useActionPlayback(fast:boolean){
   const [room,setRoom]=useState<RoomState|null>(null);
@@ -24,7 +25,8 @@ export function useActionPlayback(fast:boolean){
         marbleCount:pieces.filter(m=>m.seat===p.seat&&m.loc==='home').length}))});
     setAction(next);
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    timer.current=setTimeout(()=>pump.current(),reduced?0:speed.current?1000:3300);
+    const timeline=buildActionTimeline(next,state.boardSides||state.capacity,{fast:speed.current,reducedMotion:reduced});
+    timer.current=setTimeout(()=>pump.current(),timeline.duration);
   };
   const accept=useCallback((state:RoomState)=>{
     const previous=latest.current;

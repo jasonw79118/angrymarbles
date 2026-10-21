@@ -1,50 +1,72 @@
-ANGRY MARBLES — v0.5.0 TRAPDOOR HANDOFF
-Date: 2026-10-20
-Branch: feat/trapdoor-v0.5.0
+ANGRY MARBLES - v0.6.0 VERIFIED-SOURCE TRAPDOOR HANDOFF
+Date: 2026-10-21
+Branch: feat/trapdoor-v0.6.0
 
 IMPLEMENTED
-- Fixed card selection clearing the user's intended marble: card -> marble -> unique legal move auto-selects.
-- Added explicit numbered marble controls and an explanation for backward 8 from green START versus inventory release.
-- Five logical base marbles are represented in avatar inventory with a distinct pocket below the avatar.
-- Removed visible on-board base wood, holes, pieces and badges only. Five HOME holes remain per player.
-- Confirmed action animation: collision/ejection -> avatar-pocket drop -> existing green trap opens -> marble rises -> closes.
-- Teammate bumps land on that teammate's red OUTER TRACK marker, not home; opponents can bump them there.
-- Occupied teammate red: user explicitly chose return to avatar inventory; existing occupant remains.
-- Durable Objects schedule one bot at a time every 4.5 seconds and publish each played card/action.
-- Board banner, played-card strip, and public ledger keep played cards visible; private hands/deck stay private.
-- Deduplicated action queue, reconnect recovery, reduced motion, fast animation preference, silent audio, and visual-failure fallback.
-- Bottom-left stamp, frontend package and engine version updated to 0.5.0.
+Adapted only the scanned angry-marbles-trapdoor-agent-v0.6.0 package.
+No v0.5.1 package was opened, executed, imported, or copied.
+Reference JavaScript wood/felt/grain/lens materials now paint the existing SVG board.
+New reference portraits, tabletop texture, compact player inventories and pockets,
+glossy marbles and green primary controls are visible in the real React room.
+Existing five inward HOME holes remain per side; no physical base racks or holes.
 
-LOCKED GEOMETRY
-pb_hooks/boardGeometry.cjs is unchanged.
-Exact baseline saved before implementation: tests/fixtures/geometry-v0.4.2.json.
-4/6/8 boards: 72/108/144 track holes; 20/30/40 visible home holes.
-No visible base holes; legacy base coordinates and logical base states retained.
-Existing 120-second waiting-countdown choice remains unchanged. This codebase has no per-move human 120-second timer.
+Server-confirmed release: inventory slot -> avatar pocket -> green trap opens ->
+marble rises at the SAME existing green coordinate -> trap closes.
+Opponent ejection arrives at that opponent's inventory before release begins.
+Teammate teleport arrives at their own RED OUTER TRACK marker, never HOME.
+Occupied teammate red retains the user-approved production rule: return teammate
+to inventory, leave existing occupant in place, show warning before/after play.
+Own green occupant still prevents release. Backward eight from green still works.
+Animation uses shared deterministic timing with the confirmed-action queue.
+Selection resets no longer restart an in-progress animation. Reconnect skips old
+actions; reduced motion renders final state immediately; fast mode queues actions.
+Public played cards, ledger, 4.5-second bot pacing, login/stats/cards and ticketed
+WebSocket are retained. No rules, API, D1 schema or DO integration were rewritten.
 
-VALIDATION
-npm test: 52 passing rule/geometry tests.
-npm run test:integration: real production Worker routes compiled into an isolated local Miniflare test entry point.
-npm run build: TypeScript + Vite build.
-npx wrangler deploy --dry-run: Worker bundles with existing D1/DO bindings.
-Two browser sessions: matching confirmed results, release animations, backward eight, occupied-green collisions, reduced motion,
-re-entry without duplicate animation, fast-mode action queue, and desktop/phone exact DOM hole coordinates.
-Screenshots and animated actual-browser recording: docs/trapdoor-v0.5.0/.
-No real credentials or production data were used. Supplied local test room 8FNHLY was not changed.
+GEOMETRY LOCK
+pb_hooks/boardGeometry.cjs unchanged; exact baseline fixture remains unchanged.
+4 players: 72 track, 20 home, 0 rendered base holes.
+6 players: 108 track, 30 home, 0 rendered base holes.
+8 players: 144 track, 40 home, 0 rendered base holes.
+Browser assertions compare EVERY rendered track/home center and ID with production
+geometry; independent v0.6.0 reference comparisons pass within 1e-9 SVG units.
+Existing board orientation (viewer at bottom), viewBox and click delegation remain.
+Existing waiting countdown including 120 seconds remains. No per-human-move timer
+exists in production, so none was introduced as part of a visual upgrade.
+
+VALIDATION / EVIDENCE
+npm test: 63 passing.
+npm run test:integration: 1 passing real Worker/D1/DO integration test.
+npm run build: passing TypeScript and Vite production build.
+Supplied node --test tests/geometry.test.cjs: 4 passing in an isolated CommonJS
+copy. Direct execution under this repository's type:module cannot require the
+supplied geometry.js; original supplied files were kept untouched.
+Defender custom scan of v0.6.0 completed, with no matching threat detections.
+Two authenticated browser sessions verified one ordered release per action,
+collision ordering/targets, blocked-red warnings, denied own-green release,
+backward eight, reduced motion, fast queued actions and reconnect without replay.
+Desktop 1365x768 and phone 390x844 screenshots, comparisons, actual-browser
+animated WebP and detailed browser results: docs/trapdoor-v0.6.0/.
+Local QA used isolated in-memory D1/DO with test accounts only, frontend 5180 and
+Worker 8788. No real credentials or production rooms were used.
+
+ASSETS / SKIPPED
+Six v0.6.0 avatars -> public/assets/v060/avatars; reused cyclically for 8 seats.
+Provided tabletop PNG -> optimized public/assets/v060/tabletop.webp background.
+Provided preview.js/styles.css -> materials.ts, animateAction.ts, marbles.css.
+Provided geometry.js -> test-only independent fixture, NOT production geometry.
+Illustrated trapdoor concept/board images are not playable overlays: they cannot
+preserve exact holes. Existing card artwork is retained; v0.6.0 has no new cards.
+Demo controls, demo rules and window.AngryPreview are not installed in the app.
 
 BACKEND / DEPLOYMENT
-Keep src/cloudflare.ts, worker/ and wrangler.jsonc. Do not restore PocketBase.
-No D1 schema migration required. New DO fields default on old rooms; existing piece locations are preserved.
-Deploy Worker before frontend release so the action feed/pacing is available. Worker v0.5.0 deployed; frontend publication uses the main-branch Pages workflow.
+Cloudflare remains authoritative. Do not restore PocketBase.
+src/cloudflare.ts, worker/, wrangler.jsonc and approved geometry are unchanged.
+src/engine.js changes only its version constant to 0.6.0.
+No Worker API changes or Worker deployment are needed for this frontend upgrade.
+Not published by this task. Frontend publication uses main-branch Pages workflow.
 Production frontend: https://jasonw79118.github.io/angrymarbles/
-Production Worker: https://angry-marbles-api.jasonw79118.workers.dev/api
 
-LOCAL TESTS
-npm run worker:dev (8787); npm run dev -- --host 127.0.0.1 --port 5179 --strictPort.
-If duplicate Wrangler sessions hang, restart one Worker with a separate WRANGLER_REGISTRY_PATH.
-Automated Worker integration uses in-memory isolated D1/DO state and has no production test routes.
-Browser verification used a separate frontend 5180 and isolated Worker 8788.
-Artwork sheets in the new bundle match the already-integrated avatar/marble sheets byte-for-byte.
-Reused existing optimized sprites/portraits and example timing/layering; never used the concept board as playable art. Card art unchanged.
-
-FOLLOW-UP: An occupied teammate red marker now produces a server-generated warning before the selected move is played and a visible warning after the confirmed return to inventory.
+Local normal startup: npm run worker:dev (8787), then
+npm run dev -- --host 127.0.0.1 --port 5179 --strictPort.
+src/marbles.css MUST remain the last import in src/main.tsx.

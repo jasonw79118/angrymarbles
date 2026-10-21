@@ -1,6 +1,6 @@
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 export const TRACK_PER_SEAT = boardGeometry.TRACK_PER_SIDE;
 export const TRACK = TRACK_PER_SEAT * 8;
 export const MARBLES = 5;
