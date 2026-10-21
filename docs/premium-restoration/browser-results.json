@@ -1,0 +1,57 @@
+{
+  "results": [
+    "4/6/8 production-renderer boards: exact coordinates/counts, v0.6.0 restored artwork, glossy sprites, 85–98% framing, inventories above board, and no phone overflow; same four-player pieces, turn and hole radii as before.",
+    "Two authenticated sessions observe exactly one ordered pocket-drop/open/rise/close sequence for the same confirmed action; selection alone produces no effects.",
+    "Re-entry/reconnect restores final state without replay.",
+    "Opponent and blocked-red inventory ejections precede the pocket drop; teammate teleport ends at their vulnerable red outer-track marker. Existing occupied-red warning remains.",
+    "Own green still blocks release with no event; backward eight still moves from green to corner 0.",
+    "Reduced motion skips all effects and renders confirmed positions.",
+    "Fast playback queues two rapid server-confirmed releases in order without duplicate phases."
+  ],
+  "counts": [
+    {
+      "players": 4,
+      "track": 72,
+      "home": 20,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true,
+      "allImageRequestsOK": true,
+      "framing": {
+        "width": 0.9191468070750389,
+        "height": 0.9191468070750387,
+        "viewBox": "198.42936546402314 163.42936546402308 643.1412690719537 643.1412690719537"
+      }
+    },
+    {
+      "players": 6,
+      "track": 108,
+      "home": 30,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true,
+      "allImageRequestsOK": true,
+      "framing": {
+        "width": 0.9435798857432269,
+        "height": 0.9354392243368757,
+        "viewBox": "58.99999999999996 82.27894935376915 922 805.4421012924618"
+      }
+    },
+    {
+      "players": 8,
+      "track": 144,
+      "home": 40,
+      "base": 0,
+      "exactCoordinates": true,
+      "referenceMaterials": true,
+      "allImageRequestsOK": true,
+      "framing": {
+        "width": 0.9427005125528409,
+        "height": 0.942700512552841,
+        "viewBox": "66.24377644727416 31.243776447274172 907.5124471054517 907.5124471054515"
+      }
+    }
+  ],
+  "errors": [],
+  "animationFrames": 19
+}

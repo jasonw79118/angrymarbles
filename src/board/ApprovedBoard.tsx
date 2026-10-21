@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Piece, Player, ConfirmedAction } from '../types';
 import {animateAction} from './animateAction';
 import {addTableMaterials} from './materials';
+import {addGlassMaterials} from './glass';
 import boardGeometry from '../../pb_hooks/boardGeometry.cjs';
 
 type Props = {
@@ -65,10 +66,7 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:0,'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
       el('circle',{cx:position.x,cy:position.y,r:18,fill:'transparent',class:'piece-hit'},group);
       if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
-      el('circle',{cx:position.x,cy:position.y,r:10.5,fill:`url(#ball${seat%COLORS.length})`,stroke:selected?'#fff2ad':'#fff8','stroke-width':selected?2.4:1.3},group);
-      el('circle',{cx:position.x,cy:position.y,r:9.7,fill:'url(#lens)',opacity:.67},group);
-      el('ellipse',{cx:position.x-3.3,cy:position.y-3.8,rx:3.1,ry:1.9,fill:'#fff',opacity:.72},group);
-      el('circle',{cx:position.x-5.2,cy:position.y-5.2,r:1.05,fill:'#fff',opacity:.88},group);
+      el('use',{href:`#glass-${seat%COLORS.length}`,x:position.x-10.5,y:position.y-10.5,width:21,height:21,'pointer-events':'none'},group);
       return group;
     };
     const positionOf=(piece:Piece):Point=>{
@@ -86,10 +84,21 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
     };
     const activeSide=geo.sides[activeSeat]||geo.sides[0];
     const boardOrientation=180-Math.atan2(activeSide.along.y,activeSide.along.x)*180/Math.PI;
+    // Uniform camera framing only: all geometry and piece coordinates stay locked.
+    const radians=boardOrientation*Math.PI/180,cos=Math.cos(radians),sin=Math.sin(radians);
+    const frame=geo.corners.map(p=>{
+      const x=(p.x-geo.center.x)*(geo.radius+44)/geo.radius,y=(p.y-geo.center.y)*(geo.radius+44)/geo.radius;
+      return {x:geo.center.x+x*cos-y*sin,y:geo.center.y+x*sin+y*cos};
+    });
+    const minX=Math.min(...frame.map(p=>p.x))-26,minY=Math.min(...frame.map(p=>p.y))-26;
+    const width=Math.max(...frame.map(p=>p.x))-minX+26,height=Math.max(...frame.map(p=>p.y))-minY+26;
+    svg.setAttribute('viewBox',`${minX} ${minY} ${width} ${height}`);
+    svg.style.aspectRatio=`${width} / ${height}`;
     const draw=()=>{
       svg.replaceChildren();
       const defs=el('defs');
       addTableMaterials(defs,el);
+      addGlassMaterials(defs,COLORS.map((_,seat)=>colorFor(seat)),el);
       COLORS.forEach((fallback,index)=>{
         const color=colorFor(index)||fallback;
         const ball=el('radialGradient',{id:`ball${index}`,cx:'28%',cy:'25%',r:'85%'},defs);
@@ -100,9 +109,9 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const inner=geo.corners.map(point=>({x:geo.center.x+(point.x-geo.center.x)*(geo.radius-40)/geo.radius,y:geo.center.y+(point.y-geo.center.y)*(geo.radius-40)/geo.radius}));
       polygon(outer.map(point=>({x:point.x+4,y:point.y+7})),{fill:'#000',opacity:.37,filter:'url(#shadow)'});
       polygon(outer,{fill:'url(#wood)',stroke:'#6a3c1e','stroke-width':9,'stroke-linejoin':'round'});
-      polygon(inner,{fill:'url(#felt)',stroke:'#2e160e','stroke-width':10,'stroke-linejoin':'round'});
+      polygon(inner,{fill:'url(#feltSurface)',stroke:'#2e160e','stroke-width':10,'stroke-linejoin':'round'});
       polygon(outer,{fill:'url(#grain)',opacity:.56,'pointer-events':'none'});
-      polygon(inner,{fill:'url(#felt)','pointer-events':'none'});
+      polygon(inner,{fill:'url(#feltSurface)','pointer-events':'none'});
       const roundedWood=(from:Point,to:Point,width:number,rim='#713614')=>{
         el('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,stroke:rim,'stroke-width':width+9,'stroke-linecap':'round',opacity:.94});
         el('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,stroke:'url(#wood)','stroke-width':width,'stroke-linecap':'round'});

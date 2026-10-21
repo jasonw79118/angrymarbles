@@ -1,3 +1,18 @@
+PREMIUM VISUAL RESTORATION - 2026-10-21
+Based on deployed v0.6.0 commit a6b0344. Visual changes only; version remains 0.6.0.
+Restored bright fantasy tabletop, textured felt, honey wood, reusable glass sprites,
+color-matched larger avatar panels, inventory pockets and premium green controls.
+Board now fills about 92-94% of its SVG through uniform viewBox framing only.
+Before/after coordinates, radii, pieces and turn match. 72/108/144 track holes,
+20/30/40 home holes; zero on-board inventory holes. Production geometry untouched.
+Confirmed-action queue, trapdoor timing, teammate red rules/warnings, timer option,
+Cloudflare, login, cards and statistics logic are unchanged. Browser asset loads,
+two-session effects, reduced motion, reconnect and phone overflow checks pass.
+63 unit tests, 1 Worker integration test and production build pass.
+Before/after desktop/mobile evidence and asset mapping: docs/premium-restoration/.
+This restoration is committed locally; it has not been pushed/deployed.
+The original v0.6.0 upgrade below was already deployed before this restoration.
+
 ANGRY MARBLES - v0.6.0 VERIFIED-SOURCE TRAPDOOR HANDOFF
 Date: 2026-10-21
 Branch: feat/trapdoor-v0.6.0
