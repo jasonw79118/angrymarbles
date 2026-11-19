@@ -1,0 +1,171 @@
+/* Original sunny orchard theme. Board shapes, dimensions, and spacing stay in
+   the approved board styles. This layer changes paint and interface type. */
+:root {
+  color-scheme: light;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  color: #403b25;
+  background: #85b54e;
+  --ui-ink: #403b25;
+  --ui-muted: #626748;
+}
+body {
+  background: linear-gradient(#e9ffd70d, #224e2b29),
+    url('../public/assets/harvest/orchard-background.png') center top / cover fixed no-repeat,
+    #91c65a;
+}
+.approved-page { color: var(--ui-ink); font-family: inherit; background: transparent; }
+p { color: #626748; }
+
+.approved-page > header, .topbar {
+  background: linear-gradient(180deg, #fff2bb, #f1cb7c);
+  border-color: #b97c32;
+  border-radius: 20px;
+  box-shadow: inset 0 2px #fff9df, inset 0 -3px #c98d3d55, 0 5px 0 #7e522e, 0 9px 18px #31451e38;
+}
+.topbar { border-radius: 0; }
+.brand, .approved-page .brand {
+  color: #fff1a8;
+  font-family: 'Trebuchet MS', 'Arial Rounded MT Bold', sans-serif;
+  font-weight: 1000;
+  text-shadow: 0 2px #9b5c20, 0 3px #9b5c20, 1px 0 #9b5c20, -1px 0 #9b5c20;
+}
+.approved-page .brand strong { color: #f58a3d; text-shadow: 0 1px #fff7c4, 0 3px #8f4a20; }
+.approved-page .brand small { color: #70592f; letter-spacing: .12em; font-weight: 800; }
+
+.panel, .approved-page .panel, .approved-page .cardbar,
+.approved-page .played-cards, .approved-page .marble-picker, .score-strip {
+  color: var(--ui-ink);
+  background: linear-gradient(145deg, #fffbedfa, #f8e9c7fa);
+  border-color: #bd8a44;
+  border-radius: 19px;
+  box-shadow: inset 0 2px #fffef4, inset 0 -3px #d5a96435, 0 4px 0 #97672f, 0 8px 20px #33471e33;
+}
+.approved-page .panel h3, .approved-page .move-heading,
+.approved-page .played-cards h3, .approved-page .yourhand,
+h2, h3, h4 { color: #6c4c26; text-shadow: 0 1px #fff; }
+.approved-page .panel h3 { letter-spacing: .035em; font-weight: 900; }
+.approved-page .sub, .approved-page .notes, .approved-page .card-note,
+.approved-page .action-caption { color: var(--ui-muted); font-size: .875rem; line-height: 1.6; }
+.approved-page .yourhand, .approved-page label.block,
+.approved-page .switch, .approved-page table { font-size: .875rem; }
+.approved-page .yourhand small, small, .small, .muted { color: #677048; }
+.approved-page .card-note b { color: #386c25; font-weight: 900; }
+.approved-page .pname { color: #594123; font-size: .875rem; text-shadow: 0 1px #fff; }
+.approved-page .pmeta, .approved-page .player-relation { color: #56653b; font-size: .75rem; }
+
+.approved-page .player {
+  background: linear-gradient(140deg, #fffbe2, #e7efc2);
+  border-color: color-mix(in srgb, var(--player-color) 40%, #a28642);
+  box-shadow: inset 0 2px #ffffffc4, inset 0 -2px #a6bb5830, 0 3px 6px #52622a33;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.approved-page .player:hover { transform: none; }
+.approved-page .player.active {
+  animation: none;
+  background: linear-gradient(135deg, #fff6bf, #ffe39b);
+  border-color: #bd7b20;
+  box-shadow: inset 0 0 0 2px #fff3b4, 0 0 0 2px #ffcf5c, 0 5px 12px #9b6a2d40;
+}
+.approved-page .player-avatar { border-color: #fff0bb; box-shadow: 0 0 0 2px #be8a3e, 0 3px 7px #6b4d3038; }
+.approved-page .inventory-token.empty,
+.approved-page .inventory-token.empty.departing { background: #c5ce995e; border-color: #889560; box-shadow: inset 0 2px 3px #62703f33; }
+.approved-page .pill {
+  background: linear-gradient(#fffcde, #f3d893);
+  border-color: #be914d;
+  color: #65502b;
+  box-shadow: inset 0 1px #fff, 0 2px #b98a4438;
+}
+.approved-page .pill.green { background: linear-gradient(#d3ed8e, #abd363); border-color: #699b37; color: #315a21; box-shadow: inset 0 1px #f1ffcf; }
+
+button {
+  color: #625029;
+  background: linear-gradient(#fff9d9, #f1d49c);
+  border-color: #b58a4d;
+  font-weight: 750;
+  box-shadow: inset 0 1px #fffbed, 0 2px #a67b3c38;
+  transition: filter .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.approved-page .hdr-actions button, .approved-page .secondary,
+.approved-page .moves button, .approved-page .marble-picker button {
+  color: #60502c;
+  background: linear-gradient(#fffbe4, #f2d99d);
+  border-color: #b58a4d;
+  box-shadow: inset 0 1px #fffef4, 0 2px #b1884933;
+  text-shadow: 0 1px #fff6d9;
+}
+.primary, .approved-page .primary {
+  background: linear-gradient(180deg, #bce75b 0%, #8fc83b 12%, #68ad2e 48%, #4b9625 52%, #4e9928 100%);
+  border-color: #fff0b3;
+  border-radius: 16px;
+  color: #fffdf1;
+  text-shadow: 0 2px #3b7927;
+  box-shadow: inset 0 2px #edffaf, inset 0 -2px #377d2a, 0 4px 0 #376c24, 0 7px 12px #36511e40;
+  font-weight: 900;
+}
+button:hover:enabled { filter: brightness(1.06); }
+.primary:hover:enabled, .approved-page .primary:hover:enabled { transform: translateY(-2px); }
+.primary:active:enabled, .approved-page .primary:active:enabled { transform: translateY(2px); box-shadow: inset 0 2px #edffaf, 0 1px #376c24; }
+button:disabled { filter: saturate(.4); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #257d8e; outline-offset: 3px; }
+.approved-page .move-option[aria-pressed='true'],
+.approved-page .marble-picker button[aria-pressed='true'], .toggle button.on {
+  color: #355c23;
+  background: linear-gradient(#e5f6b2, #c4e17e);
+  border-color: #6c9537;
+  outline-color: #719c39;
+  box-shadow: inset 0 0 0 1px #f5ffd2, 0 2px #9cbb5a;
+}
+.approved-page .marble-picker .legal-piece { border-color: #7c9e3a; }
+.approved-page .move-option small { color: #617144; }
+.approved-page .playing-card { border-color: #fffaf0; box-shadow: 0 3px 0 #c3a270, 0 5px 8px #73532545; }
+.approved-page .playing-card.selected { border-color: #ffe49a; box-shadow: 0 0 0 2px #d59724, 0 0 0 5px #ffde7b77, 0 8px 12px #7b542d45; }
+.approved-page .cardbar.your-turn { border-color: #b28325; box-shadow: inset 0 2px #fffef4, inset 0 0 0 2px #f3cf6a88, 0 4px 0 #97672f, 0 8px 20px #33471e33; }
+.approved-page .your-turn .card-note b { color: #477d21; }
+.approved-page .current-play-banner { background: linear-gradient(#fff5ca, #f8df9e); color: #594326; border-color: #bd8a44; box-shadow: inset 0 1px #fff, 0 3px 9px #73532540; }
+.approved-page .current-play-banner strong { color: #3e6a26; }
+.approved-page .board-wrap {
+  background: #edffc733;
+  border-color: #e8bd6e;
+  box-shadow: inset 0 1px #fff7c8aa, 0 9px 20px #34541e40;
+}
+.approved-page .boardtag { background: #fff0c9ed; border-color: #b7863c; color: #62502e; text-shadow: none; }
+
+label, .approved-page label.block, .approved-page .switch { color: #605337; }
+input, select, .approved-page select {
+  background-color: #fffbea;
+  color: #4c502f;
+  border-color: #b29b64;
+  box-shadow: inset 0 2px 3px #80612a12;
+  accent-color: #6a9a2c;
+}
+.approved-page .status { background: #edf3cd; border-color: #a7bb6b; color: #4d6335; font-size: .875rem; }
+.approved-page .collision-warning, .error { color: #723f22; background: #ffe1aa; border-color: #cb8b43; box-shadow: 0 3px 10px #70482326; }
+.approved-page .collision-warning p { color: #723f22; }
+.approved-page td { border-color: #c3ac774d; }
+.approved-page td:first-child { color: #6a6c49; }
+.approved-page td:last-child { color: #574224; font-variant-numeric: tabular-nums; }
+.approved-page .log li { color: #686746; border-left-color: #c6a15b; background: linear-gradient(90deg, #e5c47a24, transparent); }
+.approved-page .played-card-entry small, .approved-page .card-ledger { color: #6a6847; }
+.approved-page .playback-tools, .approved-page .playback-tools label,
+.approved-page .bottomline, .approved-page .foot, footer { color: #fffce4; text-shadow: 0 1px 3px #294820, 0 0 5px #294820; }
+.approved-page .log, .approved-page .moves, .approved-page .played-card-history { scrollbar-width: thin; scrollbar-color: #a5b86c #efe8c8; }
+.score-strip strong { color: #63982e; }
+.hero { background: linear-gradient(90deg, #fff7ddeb, #fff7ddbf, #fff7dd40); border-color: #d3a54a; }
+.hero h1 { color: #5a7530; text-shadow: 0 2px #fff4cd; }
+.hero h1 span, .eyebrow { color: #a66222; }
+.hero p { color: #55663b; }
+.public-room { background: #e8edc9; }
+.auth-page h1, .auth-page h1 em { color: #fff0ad; text-shadow: 0 3px #725023; }
+.auth-page .tagline { color: #fffbe7; text-shadow: 0 1px 3px #35522b; }
+.text-button { color: #6a812c; }
+.danger { background: #f8d2b5; color: #883e2b; border-color: #bf7450; }
+
+/* Celebratory finish is driven by the server's actual match status. */
+.approved-page[data-game-status='finished'] .cardbar {
+  background: radial-gradient(circle at 10% 10%, #fff6b6, transparent 45%), linear-gradient(#fff1bb, #f3d082);
+  border-color: #bf8328;
+  box-shadow: inset 0 0 0 2px #fff3bd, 0 4px 0 #97672f, 0 0 28px #ffe68177;
+}
+.approved-page[data-game-status='finished'] .cardbar .yourhand::before { content: '\2605 \2605 \2605'; display: block; color: #b77814; letter-spacing: .15em; }
+@media (max-width: 600px) { body { background-attachment: scroll; background-position: center top; } }
+@media (prefers-reduced-motion: reduce) { button, .approved-page .player { transition: none; } }

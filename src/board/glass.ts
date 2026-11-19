@@ -2,6 +2,15 @@
 // retain the artwork's reflections, transparent edge and internal swirl.
 type Paint=(tag:string,attrs:Record<string,string|number|undefined>,parent:Element)=>Element;
 export function addGlassMaterials(defs:Element,colors:string[],el:Paint){
+  // Shared sphere lighting: light from the upper left, soft core shadow lower right, bright bounce on the rim.
+  const shade=el('radialGradient',{id:'marble-shade',cx:'36%',cy:'30%',r:'78%'},defs);
+  for(const [offset,color,opacity] of [['0%','#fff',.0],['55%','#0a1420',.0],['82%','#0a1420',.34],['100%','#050a12',.62]] as const)el('stop',{offset,'stop-color':color,'stop-opacity':opacity},shade);
+  const bounce=el('radialGradient',{id:'marble-bounce',cx:'68%',cy:'82%',r:'38%'},defs);
+  el('stop',{offset:'0%','stop-color':'#fff','stop-opacity':.42},bounce);el('stop',{offset:'100%','stop-color':'#fff','stop-opacity':0},bounce);
+  const spec=el('radialGradient',{id:'marble-spec',cx:'50%',cy:'50%',r:'50%'},defs);
+  el('stop',{offset:'0%','stop-color':'#fff','stop-opacity':.95},spec);el('stop',{offset:'100%','stop-color':'#fff','stop-opacity':0},spec);
+  const blur=el('filter',{id:'marble-blur',x:'-50%',y:'-50%',width:'200%',height:'200%'},defs);
+  el('feGaussianBlur',{stdDeviation:1.6},blur);
   colors.forEach((color,seat)=>{
     const hex=/^#[\da-f]{6}$/i.test(color)?color:'#329bff';
     const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);

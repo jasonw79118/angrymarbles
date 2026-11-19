@@ -66,7 +66,15 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:0,'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
       el('circle',{cx:position.x,cy:position.y,r:18,fill:'transparent',class:'piece-hit'},group);
       if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
-      el('use',{href:`#glass-${seat%COLORS.length}`,x:position.x-10.5,y:position.y-10.5,width:21,height:21,'pointer-events':'none'},group);
+      // Layered sphere: ground shadow stays on the board while the body can hop, squash and roll above it.
+      el('ellipse',{cx:position.x+2,cy:position.y+8.6,rx:8.2,ry:3,fill:'#000',opacity:.42,filter:'url(#marble-blur)',class:'marble-shadow','pointer-events':'none'},group);
+      const body=el('g',{class:'marble-body','pointer-events':'none'},group);
+      const glass=el('g',{class:'marble-glass'},body);
+      el('use',{href:`#glass-${seat%COLORS.length}`,x:position.x-10.5,y:position.y-10.5,width:21,height:21},glass);
+      el('circle',{cx:position.x,cy:position.y,r:10.4,fill:'url(#marble-shade)'},body);
+      el('circle',{cx:position.x,cy:position.y,r:10.4,fill:'url(#marble-bounce)'},body);
+      el('ellipse',{cx:position.x-3.6,cy:position.y-4.4,rx:3.6,ry:2.3,fill:'url(#marble-spec)',transform:`rotate(-32 ${position.x-3.6} ${position.y-4.4})`},body);
+      el('circle',{cx:position.x+3.9,cy:position.y+4.2,r:.9,fill:'#fff',opacity:.55},body);
       return group;
     };
     const positionOf=(piece:Piece):Point=>{

@@ -1,0 +1,162 @@
+/* Interface finish only. Board SVG, geometry, sizing, and layout stay in their
+   existing stylesheets. Keep board selectors out of this file. */
+:root {
+  color-scheme: dark;
+  --ui-ink: #edf5ef;
+  --ui-muted: #b6cec9;
+  --ui-brass: #d9b777;
+  --ui-line: #60766b;
+}
+
+body {
+  background-image: linear-gradient(#031c244d, #03182080), url('../public/assets/v060/tabletop.webp');
+}
+
+.approved-page > header,
+.topbar {
+  background: linear-gradient(115deg, #092e35f5, #071f2bf5);
+  border-color: var(--ui-brass);
+  box-shadow: inset 0 1px #ffdf9d30, 0 8px 24px #0005;
+}
+
+.approved-page .brand {
+  text-shadow: 0 2px 0 #703b20, 0 4px 8px #0007;
+}
+
+.approved-page .brand small {
+  color: #c6dcd5;
+  letter-spacing: .13em;
+}
+
+.panel,
+.approved-page .panel,
+.approved-page .cardbar {
+  color: var(--ui-ink);
+  background: linear-gradient(145deg, #123a40fa, #08242efa);
+  border-color: #a88e5d;
+  box-shadow: inset 0 1px #ffe9ba21, 0 8px 24px #0005;
+}
+
+.approved-page .panel h3,
+.approved-page .move-heading,
+.approved-page .yourhand {
+  color: #f2d69f;
+  text-shadow: none;
+}
+
+.approved-page .sub,
+.approved-page .notes,
+.approved-page .card-note,
+.approved-page .playback-tools,
+.approved-page .bottomline {
+  color: var(--ui-muted);
+  font-size: .875rem;
+  line-height: 1.6;
+}
+
+.approved-page .yourhand,
+.approved-page label.block,
+.approved-page .switch,
+.approved-page table {
+  font-size: .875rem;
+}
+
+.approved-page .pname { color: #fff1d5; font-size: .875rem; }
+.approved-page .pmeta,
+.approved-page .player-relation { color: #c4d9d1; font-size: .75rem; }
+
+.approved-page .player {
+  background: linear-gradient(130deg, #173e43, #0a2932);
+  border-color: color-mix(in srgb, var(--player-color) 35%, #60766b);
+  box-shadow: inset 0 1px #ffffff12, 0 3px 8px #0003;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.approved-page .player:hover { transform: none; }
+.approved-page .player.active {
+  animation: none;
+  border-color: #ffe0a0;
+  box-shadow: inset 3px 0 #ffe0a0, inset 0 0 18px #e9bd6110, 0 0 14px #e7b85324;
+}
+
+.approved-page .pill {
+  background: #14353d;
+  border-color: #5e7c77;
+  color: #dfebe5;
+}
+.approved-page .pill.green {
+  background: #163e32;
+  border-color: #6c9a75;
+  color: #c4f4cd;
+  box-shadow: inset 0 1px #d9ffe81a;
+}
+
+button { transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.approved-page .hdr-actions button,
+.approved-page .secondary,
+.approved-page .moves button,
+.approved-page .marble-picker button {
+  background: linear-gradient(#21474d, #15343d);
+  border-color: #68877e;
+  color: #eaf4ed;
+  box-shadow: inset 0 1px #ffffff12;
+}
+
+.primary,
+.approved-page .primary {
+  background: linear-gradient(#31896a, #196146);
+  border-color: #e3c58a;
+  color: #fff8e9;
+  text-shadow: 0 1px 1px #12372a;
+  box-shadow: inset 0 1px #d7ffe53d, 0 3px 0 #153e30, 0 5px 12px #0004;
+}
+
+button:hover:enabled { filter: brightness(1.08); }
+.approved-page .primary:hover:enabled { transform: none; }
+button:disabled { filter: saturate(.45); }
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #ffe1a3;
+  outline-offset: 3px;
+}
+
+.approved-page .move-option[aria-pressed="true"],
+.approved-page .marble-picker button[aria-pressed="true"] {
+  background: #284e48;
+  border-color: #ffe0a0;
+  box-shadow: inset 0 0 0 1px #ffe0a044;
+}
+
+.approved-page .playing-card.selected {
+  border-color: #ffe4a5;
+  box-shadow: 0 0 0 2px #ac7e37, 0 0 0 4px #ffe4a526, 0 7px 12px #0007;
+}
+
+input,
+select,
+.approved-page select {
+  background-color: #0c2931;
+  border-color: #658078;
+  color: #f0f5ed;
+  accent-color: #d9b777;
+}
+
+.approved-page .status {
+  background: #123b40;
+  border-color: #6b897b;
+  color: #e2efe5;
+  font-size: .875rem;
+}
+.approved-page td { border-color: #ffffff16; }
+.approved-page td:first-child { color: #bad0ca; }
+.approved-page td:last-child { color: #f4e7c9; font-variant-numeric: tabular-nums; }
+.approved-page .log li { color: #ccded5; border-left-color: #a88e5d; background: linear-gradient(90deg, #d9b7770a, transparent); }
+.approved-page .foot { color: #bed1c8; text-shadow: 0 1px 3px #000; }
+.approved-page .log,
+.approved-page .moves { scrollbar-width: thin; scrollbar-color: #7d9485 #0a2630; }
+
+@media (prefers-reduced-motion: reduce) {
+  button, .approved-page .player { transition: none; }
+}

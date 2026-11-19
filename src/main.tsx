@@ -4,4 +4,6 @@ import App from './App';
 import './styles.css';
 import './board/approved-v0.4.2.css';
 import './marbles.css';
+import './interface-polish.css';
+import './harvest-theme.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

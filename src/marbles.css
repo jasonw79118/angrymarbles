@@ -534,3 +534,10 @@ body::before { content: none; }
   .approved-page .boardtag { top: 3px; left: 5px; font-size: 6px; padding: 4px 5px; }
 }
 @media(prefers-reduced-motion:reduce) { .approved-page .player.active { animation: none; } }
+
+/* 3D marbles: sprite carries its own shadow and lighting, so the flat group drop-shadow is removed. */
+.approved-page #board .marble,
+.approved-page .board-wrap svg .marble { filter: none; }
+.approved-page #board .marble.selected .marble-body { animation: marble-bob .9s ease-in-out infinite alternate; }
+@keyframes marble-bob { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
+@media (prefers-reduced-motion: reduce) { .approved-page #board .marble.selected .marble-body { animation: none; } }

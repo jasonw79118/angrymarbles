@@ -6,10 +6,10 @@ export function addTableMaterials(defs:Element,el:PaintElement){
   const wood=el('linearGradient',{id:'wood',x1:'10%',y1:'0%',x2:'80%',y2:'100%'},defs);
   for(const [at,color] of [['0%','#ffdb99'],['25%','#edbb6e'],['55%','#b97a36'],['78%','#f7ce87'],['100%','#75431e']])stop(wood,at,color);
   const felt=el('radialGradient',{id:'felt',cx:'45%',cy:'40%',r:'80%'},defs);
-  stop(felt,'0%','#205c76');stop(felt,'70%','#0c344f');stop(felt,'100%','#04182c');
+  stop(felt,'0%','#7cae4d');stop(felt,'70%','#4f8238');stop(felt,'100%','#315f32');
   const surface=el('pattern',{id:'feltSurface',width:1040,height:970,patternUnits:'userSpaceOnUse'},defs);
   el('image',{href:`${import.meta.env.BASE_URL}assets/art/felt.webp`,width:1040,height:970,preserveAspectRatio:'xMidYMid slice'},surface);
-  el('rect',{width:1040,height:970,fill:'url(#felt)',opacity:.18},surface);
+  el('rect',{width:1040,height:970,fill:'url(#felt)',opacity:.9},surface);
   const lens=el('radialGradient',{id:'lens',cx:'30%',cy:'20%',r:'86%'},defs);
   stop(lens,'0%','#fff',.94);stop(lens,'12%','#fff',.35);stop(lens,'70%','#fff',0);stop(lens,'100%','#111827',.65);
   const pocket=el('radialGradient',{id:'pocketBlack',cx:'45%',cy:'40%',r:'70%'},defs);

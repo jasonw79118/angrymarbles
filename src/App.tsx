@@ -5,6 +5,7 @@ import type {RoomState,Player,Card,ConfirmedAction} from './types';
 import {useActionPlayback} from './useActionPlayback';
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
 import ApprovedBoard from './board/ApprovedBoard';
+import {buildActionTimeline} from './board/actionTimeline.js';
 const VERSION='0.6.0';
 const errText=(error:unknown)=>error instanceof Error?error.message:String(error);
 const pieceName=(id:string)=>{
@@ -138,13 +139,13 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     if(filtered.length===0){void call(()=>gameApi.discard(code,cardIndex));return;}
     setError(selectedPieceId?'Choose the exact split or destination below.':'Tap a glowing marble on the board to choose what this card does.');
   };
-  return <div className="approved-page" style={{'--player-count':room.capacity} as React.CSSProperties}>
+  return <div className="approved-page" data-game-status={room.status} style={{'--player-count':room.capacity} as React.CSSProperties}>
     <header><div className="brand"><strong>ANGRY</strong> MARBLES<small>{room.mode==='doubles'?'PARTNER GAME':'SINGLES'} · {room.capacity} SIDES · ROOM {room.code}</small></div><div className="hdr-actions"><span className={`pill ${room.status==='playing'?'green':''}`}>● {room.status==='playing'?'LIVE GAME':room.status.toUpperCase()}</span><button className="pill" onClick={()=>navigator.clipboard.writeText(shareUrl).catch(()=>setError('Copy failed; share your room code instead.'))}>Copy invite link</button><button className="pill" onClick={onLeave}>Back to lobby</button><button className="pill" onClick={()=>void authApi.logout()}>Sign out</button></div></header>
     {error&&<div className="status" role="alert">{error}</div>}
     <div className="layout">
-      <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} locked={busy||animating||!isTurn}/></div><div className="notes"><strong style={{color:'#ffd45c'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
+      <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} locked={busy||animating||!isTurn}/></div><div className="notes"><strong style={{color:'#7c5827'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
       <section className="boardcolumn">{warningMessages.length>0&&<div className="collision-warning" role="alert"><strong>{selectedMove?.warnings?.length?'Warning before play':'Teammate returned to inventory'}</strong>{warningMessages.map(message=><p key={message}>{message}</p>)}</div>}<div className="board-wrap"><span className="boardtag">TABLE VIEW · P{(room.mySeat??0)+1} AT THE BOTTOM</span>{(action||room.actions?.at(-1))&&<div className="current-play-banner" aria-live="polite"><span>{room.players.find(p=>p.seat===(action||room.actions!.at(-1)!).actorSeat)?.name}<br/><strong>{(action||room.actions!.at(-1)!).discarded?'Passed':'Played'} {(action||room.actions!.at(-1)!).card.rank}{(action||room.actions!.at(-1)!).card.suit}</strong></span><CardChip card={(action||room.actions!.at(-1)!).card} selected={false} onClick={()=>{}}/></div>}<Board room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} fast={fast}/></div>
-        {room.status==='playing'&&<div className="cardbar"><div className="deck-stack" role="img" aria-label={`${room.deckCount} cards in the draw pile`}><span className="deck-card-back"><b>AM</b></span><strong>{room.deckCount}</strong></div><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{if(animating)return;setCardIndex(index);setSelectedPieceId('');setSelectedMoveId('');setError('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>{isTurn&&filtered.length>0&&!selectedMove?(selectedPieceId?'Choose a move below':'Tap a glowing marble'):`Dealer: ${room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}`}<br/>Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||animating||!room.myHand.length} onClick={playSelected}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
+        {room.status==='playing'&&<div className={`cardbar${isTurn?' your-turn':''}`}><div className="deck-stack" role="img" aria-label={`${room.deckCount} cards in the draw pile`}><span className="deck-card-back"><b>AM</b></span><strong>{room.deckCount}</strong></div><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{if(animating)return;setCardIndex(index);setSelectedPieceId('');setSelectedMoveId('');setError('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>{isTurn&&filtered.length>0&&!selectedMove?(selectedPieceId?'Choose a move below':'Tap a glowing marble'):`Dealer: ${room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}`}<br/>Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||animating||!room.myHand.length} onClick={playSelected}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
         {room.status==='waiting'&&<div className="cardbar"><span className="yourhand">ROOM<br/><small>{room.code}</small></span><div className="card-note">{room.players.length} of {room.capacity} seats filled · {room.mode==='doubles'?'Teammates sit opposite.':'Singles game.'} Empty seats can be filled by computer players.</div>{room.startedCountdown&&<span className="pill green">Bots join in {secondsLeft}s</span>}{isHost?<><button className="primary" disabled={busy||room.startedCountdown} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button><button disabled={busy} onClick={()=>call(()=>gameApi.fillNow(code))}>Play computers now</button></>:!room.startedCountdown&&<span className="pill">Waiting for host</span>}</div>}
         {room.status==='finished'&&<div className="cardbar"><span className="yourhand">GAME<br/><small>COMPLETE</small></span><div className="card-note"><b>Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</b><br/>Wins, losses, bumps, and assists were saved.</div><button className="primary" onClick={onLeave}>New game</button></div>}
         {room.status==='playing'&&<div className="marble-picker"><p>{room.myHand[cardIndex]?.rank==='8'?'8: choose a marble on the track to move backward 8, including one on green START. Inventory marbles need Ace, J, Q, or K.':'Choose a specific marble on the board or in the numbered list. Inventory marbles are beside your avatar.'}</p><div>{room.pieces.filter(p=>p.seat===room.mySeat||highlightedPieces.includes(p.id)).map(p=><button type="button" key={p.id} disabled={busy||animating||!isTurn} aria-pressed={selectedPieceId===p.id} className={highlightedPieces.includes(p.id)?'legal-piece':''} onClick={()=>choosePiece(p.id)}>{pieceName(p.id)} · {p.loc==='base'?'Inventory':p.loc==='track'&&p.progress===0?'Green START':p.loc==='track'?'Track':p.loc==='home'?'Finished':'Home run'}</button>)}</div></div>}
@@ -177,6 +178,14 @@ function LocalDemo(){
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
   const [showIndices,setShowIndices]=useState(false);
+  const [demoAction,setDemoAction]=useState<ConfirmedAction|null>(null);
+  useEffect(()=>{
+    if(!demoAction)return;
+    const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration=buildActionTimeline(demoAction,room?.boardSides||4,{reducedMotion}).duration;
+    const timer=setTimeout(()=>{setDemoAction(null);setBusy(false);},duration);
+    return ()=>clearTimeout(timer);
+  },[demoAction,room?.boardSides]);
   const choices=mode==='singles'?[1,2,3,4]:[4,6,8];
   const start=(gameMode=mode,playerCount=capacity)=>{
     const seats=possibleSeats(gameMode,playerCount);
@@ -185,7 +194,7 @@ function LocalDemo(){
     const players=seats.map(seat=>({id:`local-${seat}`,name:seat===0?'You':names[seat],seat,isBot:false,color:approvedColors[seat],marbleCount:0,baseCount:5,handCount:5}));
     const initial={code:'LOCAL',mode:gameMode,capacity:playerCount,status:'waiting',visibility:'private',createdAt:Date.now(),hostId:'local-0',fillAt:null,startedCountdown:false,waitSeconds:60,preferredRelation:'against',players,pieces:[],hands:{},turnIndex:0,turnNumber:0,deck:[],discards:[],statEvents:[],log:[]} as unknown as LocalGame;
     const next=startGame(initial);next.turnSeat=next.players[next.turnIndex].seat;next.boardSides=boardGeometry.boardSides(gameMode,playerCount);
-    setRoom(next);setCardIndex(0);setError('');
+    setRoom(next);setDemoAction(null);setBusy(false);setCardIndex(0);setError('');
   };
   useEffect(()=>{start('doubles',6);},[]);
   const current=room?.players.find(player=>player.seat===room.players[room.turnIndex]?.seat);
@@ -195,9 +204,13 @@ function LocalDemo(){
   const oneStepMove=moves.find(move=>/\+1(?:\s|$|→)/.test(move.label));
   function perform(action:()=>void){
     if(!room)return;setBusy(true);setError('');
-    try{action();setRoom({...room,turnSeat:room.players[room.turnIndex]?.seat??null,pieces:[...room.pieces],players:[...room.players]});setCardIndex(0);}
-    catch(reason){setError(errText(reason));}
-    finally{setBusy(false);}
+    try{
+      action();
+      const confirmed=room.actions?.at(-1)||null;
+      setDemoAction(confirmed);setBusy(Boolean(confirmed));
+      setRoom({...room,turnSeat:room.players[room.turnIndex]?.seat??null,pieces:[...room.pieces],players:[...room.players]});setCardIndex(0);
+    }
+    catch(reason){setError(errText(reason));setBusy(false);}
   }
   const seatCount=room?.boardSides||4;
   const localPlayers=room?.players.map(player=>({...player,marbleCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='home').length,baseCount:room.pieces.filter(piece=>piece.seat===player.seat&&piece.loc==='base').length,handCount:room.hands[player.seat]?.length||0}))||[];
@@ -207,8 +220,8 @@ function LocalDemo(){
       <header><div className="brand"><strong>ANGRY</strong> MARBLES<small>THE ORIGINAL RULES · ARCADE EDITION</small></div><div className="hdr-actions"><span className="pill green">● LOCAL DEMO</span><span className="pill">Two full decks · 4 Jokers · 108 cards</span></div></header>
       {error&&<div className="status" role="alert">{error}</div>}
       {room&&<div className="layout">
-        <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${seatCount}-player · ${seatCount/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={{...room,players:localPlayers}}/></div><div className="notes"><strong style={{color:'#ffd45c'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Each avatar holds five base marbles; each red HOME branch has five empty holes. Teammates sit directly opposite. This local demo does not connect to an online room.</p></div></aside>
-        <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">EXACT SPACES · ARCADE STYLE</span><ApprovedBoard sideCount={seatCount} players={localPlayers} pieces={room.pieces} activeSeat={current?.seat||0} showIndices={showIndices}/></div>
+        <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${seatCount}-player · ${seatCount/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={{...room,players:localPlayers}}/></div><div className="notes"><strong style={{color:'#7c5827'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Each avatar holds five base marbles; each red HOME branch has five empty holes. Teammates sit directly opposite. This local demo does not connect to an online room.</p></div></aside>
+        <section className="boardcolumn"><div className="board-wrap"><span className="boardtag">EXACT SPACES · ARCADE STYLE</span><ApprovedBoard sideCount={seatCount} players={localPlayers} pieces={room.pieces} activeSeat={demoAction?.actorSeat??current?.seat??0} showIndices={showIndices} action={demoAction}/></div>
           <div className="board-actions"><button className="primary" disabled={busy||!releaseMove} onClick={()=>releaseMove&&perform(()=>play(room,current!.seat,releaseMove.id))}>▶ Roll marble from base</button><button className="secondary" disabled={busy||!oneStepMove} onClick={()=>oneStepMove&&perform(()=>play(room,current!.seat,oneStepMove.id))}>Move on track +1</button><button className="secondary" onClick={()=>start()} disabled={busy}>Reset marbles</button><label className="switch"><input type="checkbox" checked={showIndices} onChange={event=>setShowIndices(event.target.checked)}/> Show landmark numbers</label></div>
           <div className="cardbar"><span className="yourhand">YOUR HAND<br/><small>{hand.length} CARDS</small></span>{hand.map((card,index)=><CardChip key={card.id} card={card} selected={index===cardIndex} onClick={()=>setCardIndex(index)}/>)}<div className="card-note"><b>{current?.name||'Player'} · Turn {room.turnNumber}</b><br/>Draw pile: {room.deck.length} · Discards: {room.discards.length}<br/>Select a card to see server-rule-validated moves.</div><button className="primary" disabled={busy||!hand.length||room.status!=='playing'} onClick={()=>perform(()=>play(room,current!.seat,null,cardIndex))}>End turn</button></div>
           <div className="bottomline">Local demonstration only. No login, network game, or remote players in this preview.</div>

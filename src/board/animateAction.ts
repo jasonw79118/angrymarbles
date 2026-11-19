@@ -1,6 +1,7 @@
 import type {ConfirmedAction,Piece,Player} from '../types';
 import boardGeometry from '../../pb_hooks/boardGeometry.cjs';
 import {buildActionTimeline} from './actionTimeline.js';
+import {buildMoveRoute,sampleTokenMotion} from './tokenMotion.js';
 
 type Point={x:number;y:number};
 type Marble=(position:Point,seat:number,id:string,selected?:boolean)=>Element;
@@ -49,16 +50,34 @@ export function animateAction(svg:SVGSVGElement,layer:SVGGraphicsElement,sideCou
     const job:Job={...step,tick:()=>{}};
     if(step.name==='opponent-to-inventory'){
       const old=getMoving(from),token=document.querySelector<HTMLElement>(`[data-inventory-piece="${to.id}"]`);
+      const op=action.ops.find(op=>op.piece===to.id);
+      const source=op?.kind==='move'?buildMoveRoute(from,to,op,sideCount).at(-1)!:point(from);
       if(token){const previous=token.style.visibility;token.style.visibility='hidden';restore.push(()=>{token.style.visibility=previous;});}
       let orb:HTMLElement|null=null;
       job.start=()=>{old.group.setAttribute('opacity','0');orb=flight(to.seat);pulse(to.seat,true);};
-      job.tick=t=>{const a=screen(point(from)),b=pocket(to.seat);if(!a||!b||!orb)return;const ease=1-(1-t)**2;
+      job.tick=t=>{const a=screen(source),b=pocket(to.seat);if(!a||!b||!orb)return;const ease=1-(1-t)**2;
         orb.style.transform=`translate(${a.x+(b.x-a.x)*ease-11}px,${a.y+(b.y-a.y)*ease-55*Math.sin(t*Math.PI)-11}px) scale(${1-.65*t})`;orb.style.opacity=String(1-.4*t);};
       job.finish=()=>{orb?.remove();if(token)token.style.visibility='';pulse(to.seat,false);};
     }else if(step.name==='teammate-to-red'){
-      const old=getMoving(from),a=point(from),b=point(to);
-      const trail=sElt('path',{d:`M${a.x} ${a.y} Q${(a.x+b.x)/2} ${(a.y+b.y)/2-55} ${b.x} ${b.y}`,fill:'none',stroke:color(to.seat),'stroke-width':3,opacity:0,'pointer-events':'none',class:'teleport-trail'});nodes.push(trail);
-      job.tick=t=>{const ease=1-(1-t)**2;old.group.setAttribute('transform',`translate(${(b.x-a.x)*ease} ${(b.y-a.y)*ease-55*Math.sin(t*Math.PI)})`);trail.setAttribute('opacity',String(Math.sin(t*Math.PI)*.8));};
+      const old=getMoving(from),op=action.ops.find(op=>op.piece===to.id);
+      const a=op?.kind==='move'?buildMoveRoute(from,to,op,sideCount).at(-1)!:point(from),b=point(to);
+      const matrix=layer.getScreenCTM(),angle=matrix?Math.atan2(matrix.b,matrix.a):0,up={x:-Math.sin(angle),y:-Math.cos(angle)};
+      const trail=sElt('path',{d:`M${a.x} ${a.y} Q${(a.x+b.x)/2+up.x*55} ${(a.y+b.y)/2+up.y*55} ${b.x} ${b.y}`,fill:'none',stroke:color(to.seat),'stroke-width':3,opacity:0,'pointer-events':'none',class:'teleport-trail'});nodes.push(trail);
+      job.tick=t=>{const ease=1-(1-t)**2,lift=55*Math.sin(t*Math.PI);old.group.setAttribute('transform',`translate(${a.x+(b.x-a.x)*ease-old.origin.x+up.x*lift} ${a.y+(b.y-a.y)*ease-old.origin.y+up.y*lift})`);trail.setAttribute('opacity',String(Math.sin(t*Math.PI)*.8));};
+    }else if(step.name==='joker-arrival'){
+      const target=point(to),released=getMoving(from);released.group.setAttribute('opacity','0');let orb:HTMLElement|null=null;
+      job.start=()=>{orb=flight(to.seat);pulse(to.seat,true);};
+      job.tick=t=>{
+        const a=center(`[data-inventory-piece="${to.id}"]`)||pocket(to.seat),b=screen(target);
+        if(t<.8&&a&&b&&orb){const u=t/.8,ease=u*u*(3-2*u);
+          orb.style.transform=`translate(${a.x+(b.x-a.x)*ease-11}px,${a.y+(b.y-a.y)*ease-75*Math.sin(u*Math.PI)-11}px) rotate(${u*540}deg) scale(${1+.3*Math.sin(u*Math.PI)})`;
+        }else{
+          orb?.remove();released.group.setAttribute('opacity','1');
+          const u=Math.max(0,(t-.8)/.2),s=1+.22*Math.sin(u*Math.PI);
+          released.group.setAttribute('transform',`translate(${target.x} ${target.y}) scale(${s} ${1/s}) translate(${-released.origin.x} ${-released.origin.y})`);
+        }
+      };
+      job.finish=()=>{orb?.remove();pulse(to.seat,false);};
     }else if(step.name==='inventory-pocket-drop'){
       const released=getMoving({...to,loc:'base'});released.group.setAttribute('opacity','0');let orb:HTMLElement|null=null;
       job.start=()=>{orb=flight(to.seat);pulse(to.seat,true);};
@@ -88,27 +107,49 @@ export function animateAction(svg:SVGSVGElement,layer:SVGGraphicsElement,sideCou
       job.tick=t=>layer.querySelectorAll('.trapdoor-lid').forEach(node=>node.setAttribute('opacity',String(.25*(1-t))));
       job.finish=()=>layer.querySelectorAll('.trapdoor-lid').forEach(node=>node.remove());
     }else{
-      const old=getMoving(from),route:Point[]=[point(from)];
+      const old=getMoving(from);
       const op=action.ops.find(op=>op.piece===to.id);
-      if(from.loc==='track'&&to.loc==='track'&&op?.steps){
-        for(let i=1;i<=Math.abs(op.steps);i++)route.push(point({...from,progress:from.progress+i*Math.sign(op.steps)}));
-        const target=point(to),last=route.at(-1)!;if(Math.hypot(target.x-last.x,target.y-last.y)>.01)route.push(target);
-      }else if(from.loc==='track'&&(to.loc==='run'||to.loc==='home')){
-        let entry=boardGeometry.homeEntryProgress(from.seat,sideCount);while(entry<=from.progress)entry+=sideCount*18;
-        for(let progress=from.progress+1;progress<entry;progress++)route.push(point({...from,progress}));
-        for(let i=0;i<=Math.min(4,to.run);i++)route.push(geo.sides[to.seat].home[i]);
-      }else if(from.loc==='run'&&(to.loc==='run'||to.loc==='home')){
-        for(let i=from.run+1;i<=Math.min(4,to.run);i++)route.push(geo.sides[to.seat].home[i]);
-      }else route.push(point(to));
-      job.tick=t=>{const f=t*(route.length-1),i=Math.min(Math.max(0,route.length-2),Math.floor(f)),part=f-i,a=route[i],b=route[i+1]||a;
-        old.group.setAttribute('transform',`translate(${a.x+(b.x-a.x)*part-old.origin.x} ${a.y+(b.y-a.y)*part-old.origin.y})`);};
+      if(!op)continue;
+      const route=buildMoveRoute(from,to,op,sideCount);
+      const body=old.group.querySelector('.marble-body'),glass=old.group.querySelector('.marble-glass'),shadow=old.group.querySelector('.marble-shadow');
+      const {x:ox,y:oy}=old.origin;
+      const fx=sElt('g',{'pointer-events':'none',opacity:0,'aria-hidden':'true',class:'token-landing-fx'});nodes.push(fx);
+      const ring=sElt('ellipse',{cx:0,cy:5,rx:10,ry:4,fill:'none',stroke:'#fff2a0','stroke-width':2},fx);
+      const stars=Array.from({length:7},()=>sElt('path',{d:'M0 -4 L1.4 -1.4 L4 0 L1.4 1.4 L0 4 L-1.4 1.4 L-4 0 L-1.4 -1.4 Z',fill:'#fff3aa',stroke:'#cb8b2d','stroke-width':.5},fx));
+      const counter=sElt('text',{'text-anchor':'middle',fill:'#fff9d0',stroke:'#4d5b29','stroke-width':3,'paint-order':'stroke','font-size':15,'font-weight':900,'pointer-events':'none','aria-hidden':'true',opacity:0,class:'token-hop-counter'});nodes.push(counter);
+      job.tick=t=>{
+        const motion=sampleTokenMotion(route,t,Math.sign(op.steps||1));
+        const matrix=layer.getScreenCTM(),angle=matrix?Math.atan2(matrix.b,matrix.a):0,degrees=angle*180/Math.PI;
+        const up={x:-Math.sin(angle),y:-Math.cos(angle)};
+        old.group.setAttribute('transform',`translate(${motion.x-ox} ${motion.y-oy})`);
+        // Height and squash follow screen-up even when the player's board is rotated.
+        body?.setAttribute('transform',`translate(${up.x*motion.lift} ${up.y*motion.lift}) translate(${ox} ${oy}) rotate(${-degrees}) scale(${motion.scaleX} ${motion.scaleY}) rotate(${degrees}) translate(${-ox} ${-oy})`);
+        glass?.setAttribute('transform',`rotate(${motion.roll} ${ox} ${oy})`);
+        const shadowScale=1-motion.lift/75;
+        shadow?.setAttribute('transform',`translate(${ox+2} ${oy+8.6}) scale(${shadowScale}) translate(${-(ox+2)} ${-(oy+8.6)})`);
+        shadow?.setAttribute('opacity',String(.5-motion.lift/100));
+        counter.textContent=motion.settling&&to.loc==='home'?'HOME!':`${motion.hop} / ${motion.hops}`;
+        counter.setAttribute('transform',`translate(${motion.x+up.x*(motion.lift+28)} ${motion.y+up.y*(motion.lift+28)}) rotate(${-degrees})`);
+        counter.setAttribute('opacity',String(motion.settling?1-motion.settle:1));
+        const burst=motion.settling?motion.settle:motion.landing;
+        const spread=Math.max(0,burst);
+        fx.setAttribute('transform',`translate(${motion.x} ${motion.y}) rotate(${-degrees})`);
+        fx.setAttribute('opacity',String(burst<0?0:1-burst));
+        ring.setAttribute('rx',String(9+spread*19));ring.setAttribute('ry',String(4+spread*8));
+        stars.forEach((star,i)=>{
+          const theta=i/7*Math.PI*2,r=10+spread*27;
+          star.setAttribute('opacity',motion.settling?'1':'0');
+          star.setAttribute('transform',`translate(${Math.cos(theta)*r} ${Math.sin(theta)*r-8*spread}) rotate(${spread*90+i*35}) scale(${1-.5*spread})`);
+        });
+        svg.dataset.animationHop=String(motion.hop);
+      };
     }
     jobs.push(job);
   }
   let disposed=false,frame=0;const started=performance.now();
   const cleanup=()=>{
     for(const node of nodes)node.remove();for(const undo of restore)undo();for(const p of players)pulse(p.seat,false);
-    delete svg.dataset.animationAction;delete svg.dataset.animationPhase;
+    delete svg.dataset.animationAction;delete svg.dataset.animationPhase;delete svg.dataset.animationHop;
   };
   const tick=(now:number)=>{
     if(disposed)return;
