@@ -37,7 +37,7 @@ export function animateAction(svg:SVGSVGElement,layer:SVGGraphicsElement,sideCou
   for(const change of action.changes)hide(layer.querySelector(`[data-piece-id="${change.to.id}"]`));
   const markPhase=(job:Job)=>{
     svg.dataset.animationAction=action.id;svg.dataset.animationPhase=job.name;
-    svg.dispatchEvent(new CustomEvent('angrymarbles:visual-phase',{bubbles:true,detail:{actionId:action.id,name:job.name,seat:job.seat}}));
+    svg.dispatchEvent(new CustomEvent('angrymarbles:visual-phase',{bubbles:true,detail:{actionId:action.id,name:job.name,seat:job.seat,pieceId:job.pieceId}}));
   };
   const pulse=(seat:number,on:boolean)=>document.querySelector(`[data-inventory-pocket="${seat}"]`)?.classList.toggle('pulse',on);
   const flight=(seat:number)=>{

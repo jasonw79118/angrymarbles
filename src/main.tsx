@@ -6,4 +6,5 @@ import './board/approved-v0.4.2.css';
 import './marbles.css';
 import './interface-polish.css';
 import './harvest-theme.css';
+import './marble-selection.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

@@ -4,6 +4,7 @@ import {animateAction} from './animateAction';
 import {addTableMaterials} from './materials';
 import {addGlassMaterials} from './glass';
 import boardGeometry from '../../pb_hooks/boardGeometry.cjs';
+import {nearestMarble} from '../moveSelection.js';
 
 type Props = {
   sideCount: number;
@@ -11,6 +12,7 @@ type Props = {
   pieces: Piece[];
   activeSeat: number;
   selectedPieceIds?: string[];
+  selectablePieceIds?: string[];
   onPieceSelect?: (pieceId:string)=>void;
   showIndices?: boolean;
   action?: ConfirmedAction|null;
@@ -22,21 +24,40 @@ type Point = { x: number; y: number };
 const COLORS = ['#329bff','#f04b5c','#17c98c','#ffcf3e','#bb7bff','#fa963b','#21c7e5','#ed74b3'];
 const add = (origin: Point, direction: Point, distance = 1): Point => ({x:origin.x+direction.x*distance,y:origin.y+direction.y*distance});
 
-export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],onPieceSelect,showIndices=false,action=null,fast=false}:Props){
+export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selectedPieceIds=[],selectablePieceIds,onPieceSelect,showIndices=false,action=null,fast=false}:Props){
   const svgRef=useRef<SVGSVGElement>(null);
 
   const onPieceSelectRef=useRef(onPieceSelect);
+  const selectableRef=useRef(selectablePieceIds);
 
-  useEffect(()=>{onPieceSelectRef.current=onPieceSelect;},[onPieceSelect]);
+  useEffect(()=>{
+    onPieceSelectRef.current=onPieceSelect;selectableRef.current=selectablePieceIds;
+    svgRef.current?.querySelectorAll('[data-piece-id]').forEach(node=>{
+      const id=node.getAttribute('data-piece-id')||'';if(id.startsWith('moving-'))return;
+      const eligible=!selectablePieceIds||selectablePieceIds.includes(id);
+      node.setAttribute('tabindex',eligible?'0':'-1');node.setAttribute('aria-disabled',String(!eligible));
+    });
+  },[onPieceSelect,selectablePieceIds]);
   useEffect(()=>{
     const svg=svgRef.current;
     if(!svg)return;
     const selectPiece=(event:Event)=>{
       const target=event.target;
       if(!(target instanceof Element))return;
+      if(event instanceof MouseEvent&&event.detail>0){
+        const candidates=[...svg.querySelectorAll<SVGGElement>('[data-piece-id]')].flatMap(node=>{
+          const id=node.getAttribute('data-piece-id')!;
+          if(id.startsWith('moving-')||(selectableRef.current&&!selectableRef.current.includes(id)))return [];
+          const rect=node.querySelector('.piece-hit')?.getBoundingClientRect();
+          return rect?[{id,x:rect.left+rect.width/2,y:rect.top+rect.height/2}]:[];
+        });
+        const id=nearestMarble(candidates,event.clientX,event.clientY,matchMedia('(pointer: coarse)').matches?32:25);
+        if(id)onPieceSelectRef.current?.(id);
+        return;
+      }
       const marble=target.closest<SVGGElement>('[data-piece-id]');
       const id=marble?.getAttribute('data-piece-id');
-      if(id&&!id.startsWith('moving-'))onPieceSelectRef.current?.(id);
+      if(id&&!id.startsWith('moving-')&&(!selectableRef.current||selectableRef.current.includes(id)))onPieceSelectRef.current?.(id);
     };
     const selectWithKeyboard=(event:KeyboardEvent)=>{
       if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPiece(event);}
@@ -63,7 +84,8 @@ export default function ApprovedBoard({sideCount,players,pieces,activeSeat,selec
       const moving=id.startsWith('moving-');
       const slot=Number(id.split(':')[1]);
       const owner=seatPlayers.get(seat)?.name||`Player ${seat+1}`;
-      const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:0,'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
+      const eligible=!selectablePieceIds||selectablePieceIds.includes(id);
+      const group=el('g',{'data-id':id,'data-piece-id':id,class:`marble${selected?' selected':''}`,role:moving?undefined:'button',tabindex:moving?undefined:eligible?0:-1,'aria-disabled':moving?undefined:String(!eligible),'aria-label':moving?undefined:`Select ${owner}'s marble ${slot+1}`,'pointer-events':moving?'none':'auto'});
       el('circle',{cx:position.x,cy:position.y,r:18,fill:'transparent',class:'piece-hit'},group);
       if(selected)el('circle',{cx:position.x,cy:position.y,r:15.5,fill:'#ffe18a28',stroke:'#fff0a1','stroke-width':2.5,class:'selection-ring'},group);
       // Layered sphere: ground shadow stays on the board while the body can hop, squash and roll above it.

@@ -6,6 +6,8 @@ import {useActionPlayback} from './useActionPlayback';
 import boardGeometry from '../pb_hooks/boardGeometry.cjs';
 import ApprovedBoard from './board/ApprovedBoard';
 import {buildActionTimeline} from './board/actionTimeline.js';
+import {moveParticipants,selectMarble} from './moveSelection.js';
+import MarbleCloseup from './MarbleCloseup';
 const VERSION='0.6.0';
 const errText=(error:unknown)=>error instanceof Error?error.message:String(error);
 const pieceName=(id:string)=>{
@@ -50,9 +52,27 @@ function Login({onLogin}:{onLogin:()=>void}){
     </form>
   </section>;
 }
-function Board({room,selectedPieceIds=[],onPieceSelect,action=null,fast=false}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'|'mySeat'>;selectedPieceIds?:string[];onPieceSelect:(pieceId:string)=>void;action?:ConfirmedAction|null;fast?:boolean}){
+function Board({room,selectedPieceIds=[],selectablePieceIds,onPieceSelect,action=null,fast=false}:{room:Pick<RoomState,'players'|'pieces'|'boardSides'|'mode'|'capacity'|'mySeat'>;selectedPieceIds?:string[];selectablePieceIds?:string[];onPieceSelect:(pieceId:string)=>void;action?:ConfirmedAction|null;fast?:boolean}){
   const sideCount=room.boardSides||boardGeometry.boardSides(room.mode,room.capacity);
-  return <ApprovedBoard sideCount={sideCount} players={room.players} pieces={room.pieces} activeSeat={room.mySeat??room.players[0]?.seat??0} selectedPieceIds={selectedPieceIds} onPieceSelect={onPieceSelect} action={action} fast={fast} showIndices={false}/>;
+  return <ApprovedBoard sideCount={sideCount} players={room.players} pieces={room.pieces} activeSeat={room.mySeat??room.players[0]?.seat??0} selectedPieceIds={selectedPieceIds} selectablePieceIds={selectablePieceIds} onPieceSelect={onPieceSelect} action={action} fast={fast} showIndices={false}/>;
+}
+function MarblePicker({room,sourceIds,targetIds,sourceId,targetId,locked,onChoose,onClear,cardIndex}:{room:RoomState;sourceIds:string[];targetIds:string[];sourceId:string;targetId:string;locked:boolean;onChoose:(id:string)=>void;onClear:()=>void;cardIndex:number}){
+  const joker=room.myHand[cardIndex]?.rank==='JOKER';
+  const groups=[{title:joker?'1. Choose your inventory marble':'Choose your marble',ids:sourceIds,selected:sourceId},
+    {title:joker?'2. Choose the marble to bump':'Choose a marble to bump',ids:targetIds,selected:targetId}];
+  return <div className="marble-picker easy-marble-picker">
+    <p>{joker?'Joker: choose your inventory marble, then an opponent or partner on the track. You can also choose the target first.':room.myHand[cardIndex]?.rank==='8'?'Choose a track marble to hop backward 8 spaces.':'Tap a glowing marble or use the larger numbered buttons below.'}</p>
+    {groups.filter(group=>group.ids.length).map(group=><fieldset key={group.title}><legend>{group.title}</legend><div className="marble-choice-grid">{group.ids.map(id=>{
+      const piece=room.pieces.find(p=>p.id===id),owner=room.players.find(p=>p.seat===piece?.seat);
+      if(!piece)return null;
+      const relation=piece.seat===room.mySeat?'You':room.mode==='doubles'&&boardGeometry.oppositeSeat(piece.seat,room.boardSides||room.capacity)===room.mySeat?'Partner':'Opponent';
+      return <button key={id} disabled={locked} type="button" aria-pressed={group.selected===id} onClick={()=>onChoose(id)} style={{'--choice-color':owner?.color} as React.CSSProperties}>
+        <i aria-hidden="true">{piece.slot+1}</i><span><strong>{owner?.name} · {piece.slot+1}</strong><small>{relation} · {piece.loc==='base'?'Inventory':piece.loc==='track'?'Track':piece.loc==='home'?'Finished':'Home run'}</small></span>
+      </button>;
+    })}</div></fieldset>)}
+    {joker&&!targetIds.length&&<p>No eligible target is on the track for this Joker.</p>}
+    {(sourceId||targetId)&&<button type="button" className="clear-marble-selection" disabled={locked} onClick={onClear}>Clear selection</button>}
+  </div>;
 }
 function CardChip({card,selected,onClick}:{card:Card,selected:boolean,onClick:()=>void}){
   const red=card.suit==='♥'||card.suit==='♦';
@@ -84,12 +104,14 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
   const {room,action,animating,accept:setRoom}=useActionPlayback(fast);
   const [error,setError]=useState('');
   const [visualPhase,setVisualPhase]=useState('');
+  const [visualPieceId,setVisualPieceId]=useState('');
   useEffect(()=>{
-    setVisualPhase('');
-    const update=(event:Event)=>{const detail=(event as CustomEvent<{actionId:string;name:string}>).detail;if(detail.actionId===action?.id)setVisualPhase(detail.name);};
+    setVisualPhase('');setVisualPieceId('');
+    const update=(event:Event)=>{const detail=(event as CustomEvent<{actionId:string;name:string;pieceId:string}>).detail;if(detail.actionId===action?.id){setVisualPhase(detail.name);setVisualPieceId(detail.pieceId);}};
     window.addEventListener('angrymarbles:visual-phase',update);return()=>window.removeEventListener('angrymarbles:visual-phase',update);
   },[action?.id]);
   const [cardIndex,setCardIndex]=useState(0),[selectedPieceId,setSelectedPieceId]=useState(''),[selectedMoveId,setSelectedMoveId]=useState(''),[customColor,setCustomColor]=useState('#ffffff');
+  const [selectedTargetId,setSelectedTargetId]=useState('');
   const [now,setNow]=useState(Date.now()),[busy,setBusy]=useState(false);
   async function refresh(){try{setRoom(await gameApi.state<RoomState>(code));setError('');}catch(e){setError(errText(e));}}
   useEffect(()=>{
@@ -103,7 +125,7 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     return ()=>{active=false;unsubscribe();clearInterval(periodic);document.removeEventListener('visibilitychange',visibility);};
   },[code]);
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
-  useEffect(()=>{setCardIndex(0);setSelectedPieceId('');setSelectedMoveId('');},[room?.turnNumber]);
+  useEffect(()=>{setCardIndex(0);setSelectedPieceId('');setSelectedTargetId('');setSelectedMoveId('');},[room?.turnNumber]);
   useEffect(()=>{
     if(room?.status==='waiting'&&room.startedCountdown&&room.fillAt&&Date.now()>=room.fillAt){
       gameApi.fill(code).then(()=>refresh()).catch(e=>setError(errText(e)));
@@ -112,24 +134,33 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
   async function call(action:()=>Promise<unknown>){setBusy(true);setError('');try{await action();await refresh();}catch(e){setError(errText(e));}finally{setBusy(false);}}
   if(!room)return <div className="panel"><p>{error||`Loading game room ${code}…`}</p><button onClick={onLeave}>Go back</button></div>;
   const filtered=room.myMoves.filter(m=>m.cardIndex===cardIndex)||[];
-  const availableMoves=selectedPieceId?filtered.filter(move=>move.pieceIds?.includes(selectedPieceId)):[];
+  const sideCount=room.boardSides||boardGeometry.boardSides(room.mode,room.capacity);
+  const participants=(move:RoomState['myMoves'][number])=>moveParticipants(move,room.pieces,sideCount);
+  const availableMoves=selectedPieceId?filtered.filter(move=>{
+    const {sources,targets}=participants(move);
+    return sources.includes(selectedPieceId)&&(!selectedTargetId||targets.includes(selectedTargetId));
+  }):[];
   const selectedMove=availableMoves.find(move=>move.id===selectedMoveId);
   const warningMessages=selectedMove?.warnings?.length?selectedMove.warnings:(action||room.actions?.at(-1))?.warnings||[];
-  const highlightedPieces=selectedMove?.pieceIds||(selectedPieceId?[selectedPieceId]:[...new Set(filtered.flatMap(move=>move.pieceIds||[]))]);
+  const sourceIds=[...new Set(filtered.flatMap(move=>participants(move).sources))];
+  const targetIds=[...new Set((selectedPieceId?filtered.filter(move=>participants(move).sources.includes(selectedPieceId)):filtered).flatMap(move=>participants(move).targets))];
+  const selectablePieces=[...new Set([...sourceIds,...targetIds])];
+  const highlightedPieces=selectedMove?[...participants(selectedMove).sources,...participants(selectedMove).targets]
+    :selectedPieceId?[selectedPieceId,...targetIds]:selectablePieces;
+  const focusId=action?(visualPieceId||action.ops[0]?.piece):(selectedTargetId||selectedPieceId||room.actions?.at(-1)?.ops[0]?.piece);
+  const focusPiece=room.pieces.find(p=>p.id===focusId);
   const me=room.players.find(p=>p.seat===room.mySeat);
   const isHost=room.hostId===profile.userId;
   const isTurn=room.status==='playing'&&room.mySeat===room.turnSeat;
   const choosePiece=(pieceId:string)=>{
     if(animating||busy||!isTurn)return;
-    const pieceMoves=filtered.filter(move=>move.pieceIds?.includes(pieceId));
-    if(!pieceMoves.length){
-      setSelectedPieceId('');setSelectedMoveId('');
+    const selection=selectMarble(filtered,room.pieces,sideCount,{sourceId:selectedPieceId,targetId:selectedTargetId,moveId:selectedMoveId},pieceId);
+    if(!selection){
       const piece=room.pieces.find(p=>p.id===pieceId);
       setError(room.myHand[cardIndex]?.rank==='8'&&piece?.loc==='base'?'An 8 moves a marble already on the track backward, including one on green START. Use Ace, Jack, Queen, or King to release from inventory.':'That marble cannot play this card. Glowing marbles show legal choices.');return;
     }
     setError('');
-    if(selectedPieceId===pieceId){setSelectedPieceId('');setSelectedMoveId('');return;}
-    setSelectedPieceId(pieceId);setSelectedMoveId(pieceMoves.length===1?pieceMoves[0].id:'');
+    setSelectedPieceId(selection.sourceId);setSelectedTargetId(selection.targetId);setSelectedMoveId(selection.moveId);
   };
   const secondsLeft=room.fillAt?Math.max(0,Math.ceil((room.fillAt-now)/1000)):null;
   const shareUrl=`${window.location.origin}${window.location.pathname}?room=${code}&relation=${room.preferredRelation||'against'}`;
@@ -137,18 +168,18 @@ function Room({code,onLeave,profile}:{code:string,onLeave:()=>void,profile:Profi
     if(animating)return;
     if(selectedMove){void call(()=>gameApi.move(code,selectedMove.id));return;}
     if(filtered.length===0){void call(()=>gameApi.discard(code,cardIndex));return;}
-    setError(selectedPieceId?'Choose the exact split or destination below.':'Tap a glowing marble on the board to choose what this card does.');
+    setError(room.myHand[cardIndex]?.rank==='JOKER'?'Choose your inventory marble and the opponent or partner marble to bump.':selectedPieceId?'Choose the exact split or destination below.':'Tap a glowing marble on the board to choose what this card does.');
   };
   return <div className="approved-page" data-game-status={room.status} style={{'--player-count':room.capacity} as React.CSSProperties}>
     <header><div className="brand"><strong>ANGRY</strong> MARBLES<small>{room.mode==='doubles'?'PARTNER GAME':'SINGLES'} · {room.capacity} SIDES · ROOM {room.code}</small></div><div className="hdr-actions"><span className={`pill ${room.status==='playing'?'green':''}`}>● {room.status==='playing'?'LIVE GAME':room.status.toUpperCase()}</span><button className="pill" onClick={()=>navigator.clipboard.writeText(shareUrl).catch(()=>setError('Copy failed; share your room code instead.'))}>Copy invite link</button><button className="pill" onClick={onLeave}>Back to lobby</button><button className="pill" onClick={()=>void authApi.logout()}>Sign out</button></div></header>
     {error&&<div className="status" role="alert">{error}</div>}
     <div className="layout">
-      <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><PlayerList room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} locked={busy||animating||!isTurn}/></div><div className="notes"><strong style={{color:'#7c5827'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
-      <section className="boardcolumn">{warningMessages.length>0&&<div className="collision-warning" role="alert"><strong>{selectedMove?.warnings?.length?'Warning before play':'Teammate returned to inventory'}</strong>{warningMessages.map(message=><p key={message}>{message}</p>)}</div>}<div className="board-wrap"><span className="boardtag">TABLE VIEW · P{(room.mySeat??0)+1} AT THE BOTTOM</span>{(action||room.actions?.at(-1))&&<div className="current-play-banner" aria-live="polite"><span>{room.players.find(p=>p.seat===(action||room.actions!.at(-1)!).actorSeat)?.name}<br/><strong>{(action||room.actions!.at(-1)!).discarded?'Passed':'Played'} {(action||room.actions!.at(-1)!).card.rank}{(action||room.actions!.at(-1)!).card.suit}</strong></span><CardChip card={(action||room.actions!.at(-1)!).card} selected={false} onClick={()=>{}}/></div>}<Board room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} fast={fast}/></div>
-        {room.status==='playing'&&<div className={`cardbar${isTurn?' your-turn':''}`}><div className="deck-stack" role="img" aria-label={`${room.deckCount} cards in the draw pile`}><span className="deck-card-back"><b>AM</b></span><strong>{room.deckCount}</strong></div><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{if(animating)return;setCardIndex(index);setSelectedPieceId('');setSelectedMoveId('');setError('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>{isTurn&&filtered.length>0&&!selectedMove?(selectedPieceId?'Choose a move below':'Tap a glowing marble'):`Dealer: ${room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}`}<br/>Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||animating||!room.myHand.length} onClick={playSelected}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
+      <aside className="panel side left"><div><h3>PLAYERS</h3><div className="sub">{room.mode==='doubles'?`${room.capacity}-player · ${room.capacity/2} teams of 2`:`Singles · ${room.capacity} players`}</div><MarbleCloseup piece={focusPiece} players={room.players} action={action}/><PlayerList room={room} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} locked={busy||animating||!isTurn}/></div><div className="notes"><strong style={{color:'#7c5827'}}>BASE = avatar inventory. HOME = five inward holes.</strong><p>Teammates sit directly opposite. {room.players.length} of {room.capacity} seats filled.</p></div></aside>
+      <section className="boardcolumn">{warningMessages.length>0&&<div className="collision-warning" role="alert"><strong>{selectedMove?.warnings?.length?'Warning before play':'Teammate returned to inventory'}</strong>{warningMessages.map(message=><p key={message}>{message}</p>)}</div>}<div className="board-wrap"><span className="boardtag">TABLE VIEW · P{(room.mySeat??0)+1} AT THE BOTTOM</span>{(action||room.actions?.at(-1))&&<div className="current-play-banner" aria-live="polite"><span>{room.players.find(p=>p.seat===(action||room.actions!.at(-1)!).actorSeat)?.name}<br/><strong>{(action||room.actions!.at(-1)!).discarded?'Passed':'Played'} {(action||room.actions!.at(-1)!).card.rank}{(action||room.actions!.at(-1)!).card.suit}</strong></span><CardChip card={(action||room.actions!.at(-1)!).card} selected={false} onClick={()=>{}}/></div>}<Board room={room} selectablePieceIds={isTurn&&!busy&&!animating?selectablePieces:[]} selectedPieceIds={highlightedPieces} onPieceSelect={choosePiece} action={action} fast={fast}/></div>
+        {room.status==='playing'&&<div className={`cardbar${isTurn?' your-turn':''}`}><div className="deck-stack" role="img" aria-label={`${room.deckCount} cards in the draw pile`}><span className="deck-card-back"><b>AM</b></span><strong>{room.deckCount}</strong></div><span className="yourhand">YOUR HAND<br/><small>{room.myHand.length} CARDS</small></span>{room.myHand.map((card,index)=><CardChip key={card.id+index} card={card} selected={cardIndex===index} onClick={()=>{if(animating)return;setCardIndex(index);setSelectedPieceId('');setSelectedTargetId('');setSelectedMoveId('');setError('');}}/>)}<div className="card-note"><b>{isTurn?'YOUR TURN':`Waiting for ${room.players.find(player=>player.seat===room.turnSeat)?.name||'player'}`}</b><br/>{isTurn&&filtered.length>0&&!selectedMove?(selectedPieceId?(room.myHand[cardIndex]?.rank==='JOKER'?'Choose the marble to bump':'Choose a move below'):'Tap a glowing marble'):`Dealer: ${room.players.find(player=>player.seat===room.dealerSeat)?.name||'—'}`}<br/>Discard: {room.discards} · Turn {room.turnNumber}</div>{isTurn&&<button className="primary" disabled={busy||animating||!room.myHand.length} onClick={playSelected}>{filtered.length?'Play selected':'Pass turn'}</button>}</div>}
         {room.status==='waiting'&&<div className="cardbar"><span className="yourhand">ROOM<br/><small>{room.code}</small></span><div className="card-note">{room.players.length} of {room.capacity} seats filled · {room.mode==='doubles'?'Teammates sit opposite.':'Singles game.'} Empty seats can be filled by computer players.</div>{room.startedCountdown&&<span className="pill green">Bots join in {secondsLeft}s</span>}{isHost?<><button className="primary" disabled={busy||room.startedCountdown} onClick={()=>call(()=>gameApi.countdown(code))}>Start waiting · {room.waitSeconds}s</button><button disabled={busy} onClick={()=>call(()=>gameApi.fillNow(code))}>Play computers now</button></>:!room.startedCountdown&&<span className="pill">Waiting for host</span>}</div>}
         {room.status==='finished'&&<div className="cardbar"><span className="yourhand">GAME<br/><small>COMPLETE</small></span><div className="card-note"><b>Winner: {room.players.filter(player=>room.winners?.includes(player.seat)).map(player=>player.name).join(' & ')}</b><br/>Wins, losses, bumps, and assists were saved.</div><button className="primary" onClick={onLeave}>New game</button></div>}
-        {room.status==='playing'&&<div className="marble-picker"><p>{room.myHand[cardIndex]?.rank==='8'?'8: choose a marble on the track to move backward 8, including one on green START. Inventory marbles need Ace, J, Q, or K.':'Choose a specific marble on the board or in the numbered list. Inventory marbles are beside your avatar.'}</p><div>{room.pieces.filter(p=>p.seat===room.mySeat||highlightedPieces.includes(p.id)).map(p=><button type="button" key={p.id} disabled={busy||animating||!isTurn} aria-pressed={selectedPieceId===p.id} className={highlightedPieces.includes(p.id)?'legal-piece':''} onClick={()=>choosePiece(p.id)}>{pieceName(p.id)} · {p.loc==='base'?'Inventory':p.loc==='track'&&p.progress===0?'Green START':p.loc==='track'?'Track':p.loc==='home'?'Finished':'Home run'}</button>)}</div></div>}
+        {room.status==='playing'&&<MarblePicker room={room} sourceIds={sourceIds} targetIds={targetIds} sourceId={selectedPieceId} targetId={selectedTargetId} locked={busy||animating||!isTurn} onChoose={choosePiece} cardIndex={cardIndex} onClear={()=>{setSelectedPieceId('');setSelectedTargetId('');setSelectedMoveId('');setError('');}}/>}
         <div className="playback-tools"><label><input type="checkbox" checked={fast} onChange={event=>{setFast(event.target.checked);localStorage.setItem('angrymarbles_fast_animation',String(event.target.checked));}}/> Fast animations</label><span>Sound off</span>{room.botReadyAt&&!animating&&<span>Computer is considering a card…</span>}</div>
         <section className="played-cards" aria-label="Public played cards"><h3>{action?`${room.players.find(p=>p.seat===action.actorSeat)?.name||'Player'} ${action.discarded?'passes':'plays'} ${action.card.rank}${action.card.suit}`:'PLAYED CARDS'}</h3><div className="played-card-history">{[...(room.actions||[])].filter(e=>!action||e.seq<=action.seq).reverse().slice(0,16).map(event=><div key={event.id} className={`played-card-entry ${action?.id===event.id?'current':''}`}><CardChip card={event.card} selected={action?.id===event.id} onClick={()=>{}}/><small>{room.players.find(p=>p.seat===event.actorSeat)?.name}<br/>{event.discarded?'Passed':'Played'} · #{event.seq}</small></div>)}</div>{action&&<p className="action-caption" role="status">{({
           'inventory-pocket-drop':'Marble drops into its avatar pocket',

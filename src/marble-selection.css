@@ -1,0 +1,67 @@
+.approved-page .side.left > div:has(.marble-closeup) {
+  display: grid;
+  grid-template-columns: 156px minmax(0,1fr);
+  align-items: start;
+  gap: 16px;
+}
+.approved-page .marble-closeup { min-width: 0; min-height: 218px; color: #594123; }
+.approved-page .closeup-card > strong {
+  display: block; font-size: .875rem; text-align: center;
+  background: #fff1c9; border-radius: 9px 9px 0 0; padding: 6px 3px;
+}
+.approved-page .closeup-card.in-motion {
+  position: fixed; left: 12px; top: 12px; width: 156px; z-index: 50;
+  filter: drop-shadow(0 6px 12px #1a332b55);
+}
+.approved-page .marble-closeup-square {
+  width: 100%; aspect-ratio: 1; position: relative; overflow: hidden;
+  border: 3px solid #f2d18a; border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 35%,#94bf65,#487b36);
+  box-shadow: inset 0 0 18px #244b2c66,0 4px 0 #91612f,0 7px 14px #31451e33;
+}
+.approved-page .marble-closeup-square::before {
+  content: ''; position: absolute; width: 48%; height: 10%; border-radius: 50%;
+  left: 26%; top: 74%; background: #23432866; filter: blur(3px);
+}
+.approved-page .marble-closeup-square svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.approved-page .closeup-fallback {
+  position: absolute; width: 48%; height: 48%; left: 26%; top: 27%;
+  border-radius: 50%; background-color: var(--focus-color);
+  background-image: url('../public/assets/art/marble-neutral.png');
+  background-size: cover; background-blend-mode: luminosity;
+  box-shadow: inset 0 2px 4px #ffffff77,0 6px 8px #18362166;
+}
+.approved-page .marble-closeup-square:has(svg[data-visible='true']) .closeup-fallback { visibility: hidden; }
+.approved-page .marble-closeup-square > span { position: absolute; bottom: 8px; left: 0; right: 0; color: #fffbe0; font-size: .875rem; text-align: center; text-shadow: 0 1px 2px #244b2c; }
+.approved-page .closeup-name { display: block; margin-top: 8px; padding: 4px; border-radius: 8px; background: #fff3d9ed; font-size: .875rem; text-align: center; overflow-wrap: anywhere; }
+.approved-page .inventory-token { width: 32px; height: 32px; min-width: 32px; min-height: 32px; touch-action: manipulation; }
+.approved-page .avatar-tokens { flex-wrap: wrap; gap: 7px; }
+.approved-page #board { touch-action: manipulation; }
+.approved-page #board .selection-ring { stroke: #fff5b6; stroke-width: 3; filter: drop-shadow(0 0 4px #ffd962); }
+.approved-page .easy-marble-picker { display: block; }
+.approved-page .easy-marble-picker fieldset { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.approved-page .easy-marble-picker legend { color: #5b4c2d; font-size: .95rem; font-weight: 850; margin-bottom: 8px; }
+.approved-page .easy-marble-picker .marble-choice-grid { display: flex; flex-wrap: wrap; gap: 9px; }
+.approved-page .easy-marble-picker .marble-choice-grid button {
+  display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 12px;
+  text-align: left; font-size: .875rem; touch-action: manipulation;
+}
+.approved-page .marble-choice-grid button > i {
+  display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px;
+  border-radius: 50%; font-style: normal; font-weight: 900; color: white;
+  background: radial-gradient(circle at 30% 20%,#ffffffb3,var(--choice-color) 42%,#1f313c);
+  border: 1px solid #fff8; text-shadow: 0 1px 2px #000; box-shadow: 0 2px 4px #0003;
+}
+.approved-page .marble-choice-grid button span { display: block; }
+.approved-page .marble-choice-grid strong, .approved-page .marble-choice-grid small { display: block; }
+.approved-page .marble-choice-grid small { font-size: .8rem; color: #626748; }
+.approved-page .easy-marble-picker .clear-marble-selection { min-height: 44px; font-size: .875rem; }
+@media(max-width:900px) {
+  .approved-page .side.left > div:has(.marble-closeup) { grid-template-columns: minmax(0,1fr); }
+  .approved-page .marble-closeup { width: 128px; }
+  .approved-page .closeup-card.in-motion { width: 120px; }
+}
+@media(max-width:600px) {
+  .approved-page .inventory-token { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
+  .approved-page .easy-marble-picker .marble-choice-grid button { flex: 1 1 145px; }
+}
